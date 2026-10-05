@@ -195,11 +195,9 @@ fun PetDetailScreen(
                 }
 
                 groupedTasks.forEach { (category, categoryTasks) ->
-                    if (category != "Feeding") {
-                        stickyHeader {
-                            Surface(modifier = Modifier.fillMaxWidth(), color = Color.White.copy(alpha = 0.9f)) {
-                                Text(text = category, modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp), color = BluePrimary, fontWeight = FontWeight.Bold)
-                            }
+                    stickyHeader {
+                        Surface(modifier = Modifier.fillMaxWidth(), color = Color.White.copy(alpha = 0.9f)) {
+                            Text(text = category, modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp), color = BluePrimary, fontWeight = FontWeight.Bold)
                         }
                     }
                     items(categoryTasks, key = { it.id }) { task ->
@@ -241,19 +239,14 @@ fun PetDetailScreen(
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
-            // UI MESSAGE OVERLAY
+            // UI MESSAGE OVERLAY IN GREEN COLOR
             if (successMessage != null) {
-                // Color logic: Green for positive actions, else standard black
-                val bgColor = when (successMessage) {
-                    "Task added", "Profile updated successfully", "Task updated successfully", "Today's checklist reset!", "Care routine cleared successfully", "Pet added", "Health record saved" -> Color(0xFF2E7D32)
-                    else -> Color.Black.copy(alpha = 0.85f)
-                }
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
                     shape = RoundedCornerShape(24.dp),
-                    color = bgColor,
+                    color = Color(0xFF2E7D32), // Same green as other pages
                     contentColor = Color.White,
                     shadowElevation = 8.dp
                 ) {
@@ -410,10 +403,6 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onLongClick: () -> Un
                     Text(text = task.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if (task.isCompleted) Color.Gray else Color.Black)
                     Text(text = task.schedule, fontSize = 12.sp, color = Color.Gray)
                 }
-            }
-            if (task.imageUrl.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AsyncImage(model = task.imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
             }
             if (task.supplies.isNotEmpty() || task.notes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))

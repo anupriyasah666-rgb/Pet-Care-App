@@ -91,35 +91,35 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
         }
     }
 
-    fun addTaskWithImage(task: CareTask, imageUri: Uri?, onComplete: () -> Unit) {
+    /**
+     * Updated to handle task addition without images.
+     */
+    fun addTask(task: CareTask, onComplete: () -> Unit) {
         viewModelScope.launch {
-            _isImageUploading.value = true
             try {
-                var url = ""
-                if (imageUri != null) url = repository.uploadPetImage(imageUri)
-                repository.addTask(task.copy(imageUrl = url))
-                _isImageUploading.value = false
+                repository.addTask(task)
                 showFeedback("Task added")
                 delay(1000)
                 onComplete()
-            } catch (e: Exception) { _isImageUploading.value = false }
+            } catch (e: Exception) { 
+                _errorMessage.value = "Failed to add task."
+            }
         }
     }
 
-    fun updateTaskWithImage(task: CareTask, newUri: Uri?, onComplete: () -> Unit) {
+    /**
+     * Updated to handle task updates without images.
+     */
+    fun updateTask(task: CareTask, onComplete: () -> Unit) {
         viewModelScope.launch {
-            _isImageUploading.value = true
             try {
-                var url = task.imageUrl
-                if (newUri != null && !newUri.toString().startsWith("http")) {
-                    url = repository.uploadPetImage(newUri)
-                }
-                repository.updateTask(task.copy(imageUrl = url))
-                _isImageUploading.value = false
+                repository.updateTask(task)
                 showFeedback("Task updated successfully")
                 delay(1000)
                 onComplete()
-            } catch (e: Exception) { _isImageUploading.value = false }
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to update task."
+            }
         }
     }
 
@@ -146,7 +146,6 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
 
     /**
      * Updates pet details including image upload if a new local image is selected.
-     * Uses a more robust check for local vs remote URIs to ensure saving actually works.
      */
     fun updatePetWithImage(pet: Pet, newUri: Uri?, onComplete: () -> Unit) {
         viewModelScope.launch {
@@ -156,8 +155,6 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 
                 if (newUri != null) {
                     val uriString = newUri.toString()
-                    // If it's a local content URI or a file path, we MUST upload it to save it permanently.
-                    // If it's already an http link, it's already saved in Firebase Storage.
                     if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
                         finalImageUrl = repository.uploadPetImage(newUri)
                     } else if (uriString.startsWith("http")) {
@@ -165,15 +162,9 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                     }
                 }
                 
-                // Update Firestore document with the correct Image URL and all other modified fields
                 repository.updatePet(pet.copy(imageUrl = finalImageUrl))
-                
                 _isImageUploading.value = false
-                
-                // Fast Redirect: Navigate back immediately
                 onComplete()
-                
-                // Show feedback on Home screen
                 showFeedback("Profile updated successfully")
             } catch (e: Exception) { 
                 _isImageUploading.value = false
@@ -184,13 +175,11 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
     }
 
     fun deletePet(petId: String, onComplete: () -> Unit) {
-        // Fast Redirect: Call navigation immediately as requested
         onComplete()
         _successMessage.value = "Pet deleted"
         
         viewModelScope.launch { 
             try {
-                // Perform background deletion and cleanup
                 repository.deletePet(petId)
                 repository.cleanupPetData(petId)
                 delay(2000)
@@ -215,11 +204,12 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
             try {
                 val newStatus = !task.isCompleted
                 repository.updateTask(task.copy(isCompleted = newStatus))
-                showFeedback(if (newStatus) "Marked as completed" else "Task marked as uncompleted")
+                showFeedback(if (newStatus) "Marked as completed" else "Marked as undone")
             } catch (e: Exception) { _errorMessage.value = "Update failed." }
         }
     }
 
+    // Keep these for internal use if needed, but the ones with onComplete are preferred for UI
     fun addTask(task: CareTask) {
         viewModelScope.launch { 
             try {

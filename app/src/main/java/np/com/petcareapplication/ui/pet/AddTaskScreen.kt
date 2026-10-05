@@ -1,31 +1,23 @@
 package np.com.petcareapplication.ui.pet
 
 import android.app.DatePickerDialog
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
@@ -43,7 +35,7 @@ fun AddTaskScreen(
     petId: String,
     onBack: () -> Unit,
     onTaskAdded: () -> Unit,
-    authViewModel: AuthViewModel = viewModel(), // Added to get user ID
+    authViewModel: AuthViewModel = viewModel(),
     petViewModel: PetViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -63,9 +55,6 @@ fun AddTaskScreen(
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
     var selectedDay by remember { mutableStateOf("Monday") }
     var dayExpanded by remember { mutableStateOf(false) }
-
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> selectedImageUri = uri }
 
     var titleError by remember { mutableStateOf<String?>(null) }
     var scheduleError by remember { mutableStateOf<String?>(null) }
@@ -97,12 +86,6 @@ fun AddTaskScreen(
             Column(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))
                 .padding(16.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Task Image
-                Box(modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(20.dp)).background(BluePrimary.copy(alpha = 0.05f)).clickable { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
-                    if (selectedImageUri != null) AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    else Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary, modifier = Modifier.size(32.dp))
-                }
-
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Task Details", fontWeight = FontWeight.Bold, color = BluePrimary)
@@ -153,25 +136,25 @@ fun AddTaskScreen(
                             }
                             val task = CareTask(
                                 petId = petId,
-                                ownerId = user?.uid ?: "", // Requirement: Associate with owner for consolidation
+                                ownerId = user?.uid ?: "",
                                 title = title, category = category, schedule = finalSchedule,
                                 notes = notes, supplies = supplies, type = type,
                                 dueDate = selectedDate.timeInMillis
                             )
-                            petViewModel.addTaskWithImage(task, selectedImageUri) { onTaskAdded() }
+                            // Call addTask instead of non-existent addTaskWithImage
+                            petViewModel.addTask(task) { onTaskAdded() }
                         }
                     }
                 )
             }
 
-            // SUCCESS MESSAGE OVERLAY IN GREEN COLOR
             if (successMessage != null) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 32.dp, start = 24.dp, end = 24.dp),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF2E7D32), // Dark Green Background
+                    color = Color(0xFF2E7D32),
                     contentColor = Color.White,
                     shadowElevation = 8.dp
                 ) {

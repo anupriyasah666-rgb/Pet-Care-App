@@ -1,11 +1,7 @@
 package np.com.petcareapplication.ui.pet
 
 import android.app.DatePickerDialog
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,16 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
@@ -62,11 +55,6 @@ fun EditTaskScreen(
     var supplies by remember { mutableStateOf(task.supplies) }
     var type by remember { mutableStateOf(task.type) }
     
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> selectedImageUri = uri }
-
     // Logic to parse existing schedule
     val initialDay = if (task.type == "WEEKLY" && task.schedule.startsWith("Every ")) {
         task.schedule.substringAfter("Every ").substringBefore(" at")
@@ -134,23 +122,8 @@ fun EditTaskScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Task Photo Section
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(20.dp))
-                            .background(BluePrimary.copy(alpha = 0.05f)).clickable { imagePickerLauncher.launch("image/*") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val displayImage = selectedImageUri ?: if (task.imageUrl.isNotEmpty()) Uri.parse(task.imageUrl) else null
-                        if (displayImage != null) {
-                            AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        } else {
-                            Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary, modifier = Modifier.size(32.dp))
-                        }
-                    }
-                }
-
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 8.dp) {
+                    val categories = listOf("Feeding", "Exercise", "Grooming", "Medication", "Healthcare", "Cleaning")
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(text = "Task Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
                         
@@ -211,7 +184,7 @@ fun EditTaskScreen(
                                 notes = notes, supplies = supplies, type = type,
                                 dueDate = if (type == "ONE-TIME") selectedDate.timeInMillis else task.dueDate
                             )
-                            petViewModel.updateTaskWithImage(updatedTask, selectedImageUri) { onTaskUpdated() }
+                            petViewModel.updateTask(updatedTask) { onTaskUpdated() }
                         }
                     }
                 )

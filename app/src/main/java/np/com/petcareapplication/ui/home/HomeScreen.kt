@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -154,7 +155,7 @@ fun HomeScreen(
                 item { Text(text = "My Pets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = BluePrimary) }
                 if (pets.isEmpty()) { item { EmptyHomeState() } }
                 else {
-                    items(pets) { pet -> PetSummaryItem(pet = pet, onClick = { onPetClick(pet.id) }) }
+                    items(pets, key = { it.id }) { pet -> PetSummaryItem(pet = pet, onClick = { onPetClick(pet.id) }) }
                 }
 
                 // Show both pending and completed routine tasks as per request to see completion state on Home
@@ -165,7 +166,7 @@ fun HomeScreen(
                     // Sorting to keep pending tasks at top
                     val sortedTasks = allTasks.sortedBy { it.isCompleted }
                     
-                    items(sortedTasks) { task ->
+                    items(sortedTasks, key = { it.id }) { task ->
                         val petName = pets.find { it.id == task.petId }?.name ?: "Pet"
                         HomeTaskItem(
                             task = task, 
@@ -179,17 +180,27 @@ fun HomeScreen(
             }
 
             if (successMessage != null) {
-                // Color logic: Green for "Pet added", Pink for "Pet deleted", else black
+                // Color logic: Green for positive actions, Pink for "Pet deleted", else black
                 val bgColor = when (successMessage) {
-                    "Pet added" -> Color(0xFF2E7D32) // Green
+                    "Pet added", "Marked as completed", "Marked as undone", "Today's checklist reset!", "Task added", "Profile updated successfully", "Task updated successfully", "Care routine cleared successfully", "Health record saved" -> Color(0xFF2E7D32) // Green
                     "Pet deleted" -> PinkHighlight
                     else -> Color.Black.copy(alpha = 0.8f)
                 }
                 Surface(
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
-                    shape = RoundedCornerShape(24.dp), color = bgColor, contentColor = Color.White
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 96.dp, start = 24.dp, end = 24.dp), // Lifted higher to avoid FAB overlap
+                    shape = RoundedCornerShape(24.dp), 
+                    color = bgColor, 
+                    contentColor = Color.White,
+                    shadowElevation = 8.dp
                 ) {
-                    Text(text = successMessage!!, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), fontWeight = FontWeight.Bold)
+                    Text(
+                        text = successMessage!!, 
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), 
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -222,12 +233,12 @@ fun ConsolidatedStatusSection(pendingTasks: Int, totalTasks: Int) {
 fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit) {
     PetCareCard(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Task Circle on top left
+            // Task Circle on top left - FILL WITH PINK WHEN COMPLETED
             Box(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (task.isCompleted) PinkHighlight else Color.Transparent)
+                    .background(if (task.isCompleted) PinkHighlight else Color.White) // Changed Transparent to White to ensure it's "filled"
                     .border(
                         width = 2.dp,
                         color = if (task.isCompleted) PinkHighlight else Color.LightGray.copy(alpha = 0.5f),
