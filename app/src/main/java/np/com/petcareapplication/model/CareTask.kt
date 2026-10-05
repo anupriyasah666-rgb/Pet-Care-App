@@ -19,5 +19,6 @@ data class CareTask(
     @set:PropertyName("completed")
     var isCompleted: Boolean = false,
     val dueDate: Long = 0,
-    val type: String = "DAILY"
+    val type: String = "DAILY",
+    val imageUrl: String = ""
 )

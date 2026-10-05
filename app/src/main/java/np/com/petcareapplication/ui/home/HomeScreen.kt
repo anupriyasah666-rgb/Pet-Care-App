@@ -53,6 +53,7 @@ fun HomeScreen(
     petViewModel: PetViewModel = viewModel(),
     onPetClick: (String) -> Unit,
     onAddPetClick: () -> Unit,
+    onEditTaskClick: (String) -> Unit,
     onProfileClick: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -171,7 +172,8 @@ fun HomeScreen(
                         HomeTaskItem(
                             task = task, 
                             petName = petName, 
-                            onComplete = { petViewModel.toggleTaskCompletion(task) }
+                            onComplete = { petViewModel.toggleTaskCompletion(task) },
+                            onEdit = { onEditTaskClick(task.id) }
                         )
                     }
                 }
@@ -230,8 +232,8 @@ fun ConsolidatedStatusSection(pendingTasks: Int, totalTasks: Int) {
 }
 
 @Composable
-fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit) {
-    PetCareCard(modifier = Modifier.fillMaxWidth()) {
+fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit: () -> Unit) {
+    PetCareCard(modifier = Modifier.fillMaxWidth().clickable { onEdit() }) {
         Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             // Task Circle on top left - FILL WITH PINK WHEN COMPLETED
             Box(
@@ -258,7 +260,7 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.width(12.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(text = petName, color = PinkHighlight, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(text = " • ", color = Color.Gray)
@@ -270,6 +272,15 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit) {
                     )
                 }
                 Text(text = task.schedule, fontSize = 12.sp, color = Color.Gray)
+            }
+            
+            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Task",
+                    tint = BluePrimary.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

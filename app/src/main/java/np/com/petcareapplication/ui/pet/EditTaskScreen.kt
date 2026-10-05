@@ -1,9 +1,14 @@
 package np.com.petcareapplication.ui.pet
 
 import android.app.DatePickerDialog
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,17 +16,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
-import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.PetViewModel
 import androidx.compose.foundation.verticalScroll
 import java.text.SimpleDateFormat
@@ -36,8 +43,11 @@ fun EditTaskScreen(
     petViewModel: PetViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    
+    // Check both specific tasks list and the consolidated dashboard list
     val tasks by petViewModel.tasks.collectAsState()
-    val task = tasks.find { it.id == taskId }
+    val allTasks by petViewModel.allTasks.collectAsState()
+    val task = tasks.find { it.id == taskId } ?: allTasks.find { it.id == taskId }
 
     if (task == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -47,6 +57,7 @@ fun EditTaskScreen(
     }
 
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    val categories = listOf("Feeding", "Exercise", "Grooming", "Medication", "Healthcare", "Cleaning")
     
     // UI State initialized with current task data
     var title by remember { mutableStateOf(task.title) }
@@ -54,6 +65,8 @@ fun EditTaskScreen(
     var notes by remember { mutableStateOf(task.notes) }
     var supplies by remember { mutableStateOf(task.supplies) }
     var type by remember { mutableStateOf(task.type) }
+    var manualImageUrl by remember { mutableStateOf(task.imageUrl) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     
     // Logic to parse existing schedule
     val initialDay = if (task.type == "WEEKLY" && task.schedule.startsWith("Every ")) {
@@ -77,6 +90,10 @@ fun EditTaskScreen(
     var categoryExpanded by remember { mutableStateOf(false) }
     var dayExpanded by remember { mutableStateOf(false) }
     val isUploading by petViewModel.isImageUploading.collectAsState()
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> uri?.let { selectedImageUri = it } }
 
     val datePickerDialog = DatePickerDialog(
         context,
@@ -122,12 +139,69 @@ fun EditTaskScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Photo Picker Section
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(BluePrimary.copy(alpha = 0.1f))
+                        .clickable { imagePickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selectedImageUri != null) {
+                        AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else if (manualImageUrl.isNotEmpty()) {
+                        AsyncImage(model = manualImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else {
+                        Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary, modifier = Modifier.size(32.dp))
+                    }
+                }
+                Text("Update Photo", fontSize = 12.sp, color = Color.Gray)
+
+                PetCareTextField(
+                    value = manualImageUrl,
+                    onValueChange = { manualImageUrl = it },
+                    label = "Image URL",
+                    leadingIcon = { Icon(Icons.Default.Link, null, tint = BluePrimary) }
+                )
+
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 8.dp) {
-                    val categories = listOf("Feeding", "Exercise", "Grooming", "Medication", "Healthcare", "Cleaning")
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(text = "Task Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
                         
                         PetCareTextField(value = title, onValueChange = { title = it }, label = "Title")
+
+                        // Category Dropdown
+                        Box {
+                            OutlinedTextField(
+                                value = category,
+                                onValueChange = {},
+                                label = { Text("Category") },
+                                modifier = Modifier.fillMaxWidth(),
+                                readOnly = true,
+                                trailingIcon = {
+                                    IconButton(onClick = { categoryExpanded = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, null)
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            DropdownMenu(
+                                expanded = categoryExpanded,
+                                onDismissRequest = { categoryExpanded = false },
+                                modifier = Modifier.fillMaxWidth(0.8f)
+                            ) {
+                                categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat) },
+                                        onClick = {
+                                            category = cat
+                                            categoryExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
 
                         // Frequency Switcher
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -137,13 +211,16 @@ fun EditTaskScreen(
                         }
 
                         if (type == "WEEKLY") {
-                            OutlinedTextField(
-                                value = selectedDay, onValueChange = {}, label = { Text("Day") },
-                                modifier = Modifier.fillMaxWidth(), readOnly = true,
-                                trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } }
-                            )
-                            DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }) {
-                                daysOfWeek.forEach { day -> DropdownMenuItem(text = { Text(day) }, onClick = { selectedDay = day; dayExpanded = false }) }
+                            Box {
+                                OutlinedTextField(
+                                    value = selectedDay, onValueChange = {}, label = { Text("Day") },
+                                    modifier = Modifier.fillMaxWidth(), readOnly = true,
+                                    trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } },
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }) {
+                                    daysOfWeek.forEach { day -> DropdownMenuItem(text = { Text(day) }, onClick = { selectedDay = day; dayExpanded = false }) }
+                                }
                             }
                         }
 
@@ -153,7 +230,8 @@ fun EditTaskScreen(
                                 onValueChange = {}, label = { Text("Appointment Date") },
                                 modifier = Modifier.fillMaxWidth(), readOnly = true,
                                 leadingIcon = { Icon(Icons.Default.CalendarMonth, null, tint = BluePrimary) },
-                                trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, null) } }
+                                trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, null) } },
+                                shape = RoundedCornerShape(16.dp)
                             )
                         }
 
@@ -182,9 +260,10 @@ fun EditTaskScreen(
                             val updatedTask = task.copy(
                                 title = title, category = category, schedule = finalSchedule,
                                 notes = notes, supplies = supplies, type = type,
+                                imageUrl = manualImageUrl,
                                 dueDate = if (type == "ONE-TIME") selectedDate.timeInMillis else task.dueDate
                             )
-                            petViewModel.updateTask(updatedTask) { onTaskUpdated() }
+                            petViewModel.updateTaskWithImage(updatedTask, selectedImageUri) { onTaskUpdated() }
                         }
                     }
                 )

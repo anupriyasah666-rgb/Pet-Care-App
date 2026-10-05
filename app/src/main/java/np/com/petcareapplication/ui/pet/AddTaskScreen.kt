@@ -1,9 +1,14 @@
 package np.com.petcareapplication.ui.pet
 
 import android.app.DatePickerDialog
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,18 +16,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
-import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
 import androidx.compose.foundation.verticalScroll
@@ -60,7 +67,19 @@ fun AddTaskScreen(
     var scheduleError by remember { mutableStateOf<String?>(null) }
     val categories = listOf("Feeding", "Exercise", "Grooming", "Medication", "Healthcare", "Cleaning")
     var categoryExpanded by remember { mutableStateOf(false) }
+    
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var imageUrl by remember { mutableStateOf("") }
     val isUploading by petViewModel.isImageUploading.collectAsState()
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> 
+        if (uri != null) {
+            selectedImageUri = uri
+            imageUrl = "" 
+        }
+    }
 
     val datePickerDialog = DatePickerDialog(context, { _, y, m, d ->
         selectedDate.set(y, m, d)
@@ -86,6 +105,34 @@ fun AddTaskScreen(
             Column(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))
                 .padding(16.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Photo Section
+                Box(
+                    modifier = Modifier.size(100.dp).clip(CircleShape).background(BluePrimary.copy(alpha = 0.1f)).clickable { imagePickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    val displayImage = if (selectedImageUri != null) selectedImageUri else if (imageUrl.isNotEmpty()) imageUrl else null
+                    if (displayImage != null) {
+                        AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else {
+                        Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary)
+                    }
+                }
+
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp) {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Photo Link", fontWeight = FontWeight.Bold, color = BluePrimary, fontSize = 14.sp)
+                        PetCareTextField(
+                            value = imageUrl, 
+                            onValueChange = { 
+                                imageUrl = it
+                                if (it.isNotEmpty()) selectedImageUri = null
+                            }, 
+                            label = "Image URL"
+                        )
+                        Text("Or tap the circle above to pick a file", fontSize = 11.sp, color = Color.Gray)
+                    }
+                }
+
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Task Details", fontWeight = FontWeight.Bold, color = BluePrimary)
@@ -139,10 +186,11 @@ fun AddTaskScreen(
                                 ownerId = user?.uid ?: "",
                                 title = title, category = category, schedule = finalSchedule,
                                 notes = notes, supplies = supplies, type = type,
-                                dueDate = selectedDate.timeInMillis
+                                dueDate = selectedDate.timeInMillis,
+                                imageUrl = imageUrl
                             )
-                            // Call addTask instead of non-existent addTaskWithImage
-                            petViewModel.addTask(task) { onTaskAdded() }
+                            val finalUri = if (selectedImageUri != null) selectedImageUri else if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
+                            petViewModel.addTaskWithImage(task, finalUri) { onTaskAdded() }
                         }
                     }
                 )

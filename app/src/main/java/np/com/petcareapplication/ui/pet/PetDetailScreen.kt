@@ -190,7 +190,7 @@ fun PetDetailScreen(
                 item {
                     Column {
                         Text("Routine Checklist", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
-                        Text("Swipe tasks to manage • Shake to reset", fontSize = 11.sp, color = Color.Gray)
+                        Text("Swipe tasks to manage • Tap edit icon to modify", fontSize = 11.sp, color = Color.Gray)
                     }
                 }
 
@@ -228,7 +228,7 @@ fun PetDetailScreen(
                                 EnhancedTaskItem(
                                     task = task, 
                                     onToggle = { petViewModel.toggleTaskCompletion(task) }, 
-                                    onLongClick = { onEditTaskClick(task.id) }
+                                    onEditClick = { onEditTaskClick(task.id) }
                                 ) 
                             }
                         )
@@ -365,13 +365,8 @@ fun InfoBadge(text: String, icon: ImageVector, color: Color = BluePrimary) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onLongClick: () -> Unit) {
-    PetCareCard(
-        modifier = Modifier.combinedClickable(
-            onClick = {}, // Disabled card-level click for completion
-            onLongClick = onLongClick
-        )
-    ) {
+fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Unit) {
+    PetCareCard {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Task Circle on top left
@@ -402,6 +397,18 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onLongClick: () -> Un
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = task.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if (task.isCompleted) Color.Gray else Color.Black)
                     Text(text = task.schedule, fontSize = 12.sp, color = Color.Gray)
+                }
+
+                IconButton(
+                    onClick = onEditClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Task",
+                        tint = BluePrimary.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
             if (task.supplies.isNotEmpty() || task.notes.isNotEmpty()) {

@@ -91,9 +91,6 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
         }
     }
 
-    /**
-     * Updated to handle task addition without images.
-     */
     fun addTask(task: CareTask, onComplete: () -> Unit) {
         viewModelScope.launch {
             try {
@@ -107,9 +104,23 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
         }
     }
 
-    /**
-     * Updated to handle task updates without images.
-     */
+    fun addTaskWithImage(task: CareTask, imageUri: Uri?, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            _isImageUploading.value = true
+            try {
+                var url = ""
+                if (imageUri != null) url = repository.uploadPetImage(imageUri)
+                repository.addTask(task.copy(imageUrl = url))
+                _isImageUploading.value = false
+                onComplete()
+                showFeedback("Task added")
+            } catch (e: Exception) {
+                _isImageUploading.value = false
+                _errorMessage.value = "Failed to add task."
+            }
+        }
+    }
+
     fun updateTask(task: CareTask, onComplete: () -> Unit) {
         viewModelScope.launch {
             try {
@@ -123,36 +134,11 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
         }
     }
 
-    fun addPetWithImage(pet: Pet, imageUri: Uri?, onComplete: () -> Unit) {
+    fun updateTaskWithImage(task: CareTask, newUri: Uri?, onComplete: () -> Unit) {
         viewModelScope.launch {
             _isImageUploading.value = true
             try {
-                var url = ""
-                if (imageUri != null) url = repository.uploadPetImage(imageUri)
-                repository.addPet(pet.copy(imageUrl = url))
-                _isImageUploading.value = false
-                
-                // Fast Redirect: Call navigation immediately
-                onComplete()
-                
-                // Show feedback on Home screen
-                showFeedback("Pet added")
-            } catch (e: Exception) { 
-                _isImageUploading.value = false
-                Log.e("PetViewModel", "Error adding pet", e)
-            }
-        }
-    }
-
-    /**
-     * Updates pet details including image upload if a new local image is selected.
-     */
-    fun updatePetWithImage(pet: Pet, newUri: Uri?, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            _isImageUploading.value = true
-            try {
-                var finalImageUrl = pet.imageUrl
-                
+                var finalImageUrl = task.imageUrl
                 if (newUri != null) {
                     val uriString = newUri.toString()
                     if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
@@ -161,7 +147,47 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                         finalImageUrl = uriString
                     }
                 }
-                
+                repository.updateTask(task.copy(imageUrl = finalImageUrl))
+                _isImageUploading.value = false
+                onComplete()
+                showFeedback("Task updated successfully")
+            } catch (e: Exception) {
+                _isImageUploading.value = false
+                _errorMessage.value = "Failed to update task."
+            }
+        }
+    }
+
+    fun addPetWithImage(pet: Pet, imageUri: Uri?, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            _isImageUploading.value = true
+            try {
+                var url = ""
+                if (imageUri != null) url = repository.uploadPetImage(imageUri)
+                repository.addPet(pet.copy(imageUrl = url))
+                _isImageUploading.value = false
+                onComplete()
+                showFeedback("Pet added")
+            } catch (e: Exception) { 
+                _isImageUploading.value = false
+                Log.e("PetViewModel", "Error adding pet", e)
+            }
+        }
+    }
+
+    fun updatePetWithImage(pet: Pet, newUri: Uri?, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            _isImageUploading.value = true
+            try {
+                var finalImageUrl = pet.imageUrl
+                if (newUri != null) {
+                    val uriString = newUri.toString()
+                    if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
+                        finalImageUrl = repository.uploadPetImage(newUri)
+                    } else if (uriString.startsWith("http")) {
+                        finalImageUrl = uriString
+                    }
+                }
                 repository.updatePet(pet.copy(imageUrl = finalImageUrl))
                 _isImageUploading.value = false
                 onComplete()
@@ -177,7 +203,6 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
     fun deletePet(petId: String, onComplete: () -> Unit) {
         onComplete()
         _successMessage.value = "Pet deleted"
-        
         viewModelScope.launch { 
             try {
                 repository.deletePet(petId)
@@ -207,20 +232,6 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 showFeedback(if (newStatus) "Marked as completed" else "Marked as undone")
             } catch (e: Exception) { _errorMessage.value = "Update failed." }
         }
-    }
-
-    // Keep these for internal use if needed, but the ones with onComplete are preferred for UI
-    fun addTask(task: CareTask) {
-        viewModelScope.launch { 
-            try {
-                repository.addTask(task)
-                showFeedback("Task added")
-            } catch (e: Exception) {}
-        }
-    }
-
-    fun updateTask(task: CareTask) {
-        viewModelScope.launch { try { repository.updateTask(task) } catch (e: Exception) {} }
     }
 
     fun clearSuccessMessage() { _successMessage.value = null }

@@ -110,16 +110,19 @@ fun MedicalRecordScreen(
                         // 2. SCENARIO SYNC: If Luna's vaccination is due, add it to the routine checklist
                         if (addToChecklist) {
                             val df = SimpleDateFormat("MMM dd", Locale.getDefault())
-                            petViewModel.addTask(CareTask(
-                                petId = petId,
-                                ownerId = user?.uid ?: "",
-                                title = "$type Appointment",
-                                category = "Healthcare",
-                                schedule = df.format(Date(timestamp)),
-                                notes = notes,
-                                type = "ONE-TIME",
-                                dueDate = timestamp
-                            ))
+                            petViewModel.addTask(
+                                CareTask(
+                                    petId = petId,
+                                    ownerId = user?.uid ?: "",
+                                    title = "$type Appointment",
+                                    category = "Healthcare",
+                                    schedule = df.format(Date(timestamp)),
+                                    notes = notes,
+                                    type = "ONE-TIME",
+                                    dueDate = timestamp
+                                ),
+                                onComplete = { /* Task added successfully */ }
+                            )
                         }
                         showAddDialog = false
                     }

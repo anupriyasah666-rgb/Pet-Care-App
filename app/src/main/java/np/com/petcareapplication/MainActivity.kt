@@ -93,6 +93,9 @@ fun PetCareApp() {
                 onAddPetClick = {
                     navController.navigate(Screen.AddPet.route)
                 },
+                onEditTaskClick = { taskId ->
+                    navController.navigate(Screen.EditTask.createRoute(taskId))
+                },
                 onProfileClick = {
                     navController.navigate(Screen.Profile.route)
                 },
