@@ -1,6 +1,17 @@
 package np.com.petcareapplication.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -13,7 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import np.com.petcareapplication.ui.theme.BluePrimary
 
 /**
  * A custom button styled for the PetCare app.
@@ -83,9 +93,9 @@ fun PetCareTextField(
             trailingIcon = trailingIcon,
             keyboardOptions = keyboardOptions.copy(
                 autoCorrectEnabled = false,
-                capitalization = if (keyboardOptions.keyboardType == KeyboardType.Password || 
-                                    keyboardOptions.keyboardType == KeyboardType.Email) 
-                                    KeyboardCapitalization.None else keyboardOptions.capitalization
+                capitalization = if (keyboardOptions.keyboardType == KeyboardType.Password ||
+                    keyboardOptions.keyboardType == KeyboardType.Email)
+                    KeyboardCapitalization.None else keyboardOptions.capitalization
             ),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -124,4 +134,86 @@ fun PetCareCard(
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp),
         content = content
     )
+}
+
+/**
+ * Reusable confirmation dialog for every destructive action in the app
+ * (delete pet, clear routine, delete task, delete expense, delete health record).
+ * Uses the theme's error colour so the destructive button is clearly signposted
+ * in both light and dark mode, following Material 3 dialog guidance.
+ */
+@Composable
+fun ConfirmDeleteDialog(
+    title: String,
+    message: String,
+    confirmText: String = "Delete",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = { Text(message) },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) { Text(confirmText) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+/**
+ * Circular "mark as done" control used on the Home and Pet Detail checklists.
+ * The visible circle stays 32dp, but the touch target is 48dp to meet the Material
+ * minimum. toggleable() with Role.Checkbox lets TalkBack announce it as a checkbox
+ * and read out whether the task is checked.
+ */
+@Composable
+fun TaskCheckCircle(
+    checked: Boolean,
+    taskTitle: String,
+    onToggle: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = { onToggle() }
+            )
+            .semantics { contentDescription = "Mark $taskTitle as done" },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(if (checked) MaterialTheme.colorScheme.secondary else Color.Transparent)
+                .border(
+                    width = 2.dp,
+                    color = if (checked) MaterialTheme.colorScheme.secondary
+                    else MaterialTheme.colorScheme.outline,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null, // state is announced by toggleable semantics
+                    tint = MaterialTheme.colorScheme.onSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import np.com.petcareapplication.util.Validators
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BlueDark
@@ -52,17 +53,11 @@ fun RegisterScreen(
         }
     }
 
-    LaunchedEffect(successMessage) {
-        successMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-        }
-    }
-
     RegisterScreenContent(
         registerError = registerError,
         successMessage = successMessage,
         isRegisterLoading = isRegisterLoading,
-        onRegister = { name, email, password, phone -> 
+        onRegister = { name, email, password, phone ->
             viewModel.register(name, email, password, phone)
         },
         onNavigateToLogin = onNavigateToLogin
@@ -82,7 +77,7 @@ fun RegisterScreenContent(
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    
+
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
@@ -93,46 +88,12 @@ fun RegisterScreenContent(
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     fun validate(): Boolean {
-        var isValid = true
-        val trimmedName = name.trim()
-        if (trimmedName.isEmpty()) {
-            nameError = "Full name is required"
-            isValid = false
-        } else if (trimmedName.split("\\s+".toRegex()).size < 2) {
-            nameError = "Please include both First and Last name"
-            isValid = false
-        } else {
-            nameError = null
-        }
-
-        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            emailError = "Valid email is required"
-            isValid = false
-        } else {
-            emailError = null
-        }
-
-        if (phone.length != 10) {
-            phoneError = "Phone must be exactly 10 digits"
-            isValid = false
-        } else {
-            phoneError = null
-        }
-
-        if (password.length < 8) {
-            passwordError = "Password must be at least 8 characters"
-            isValid = false
-        } else {
-            passwordError = null
-        }
-
-        if (confirmPassword != password) {
-            confirmPasswordError = "Passwords do not match"
-            isValid = false
-        } else {
-            confirmPasswordError = null
-        }
-
+        nameError = Validators.validateFullName(name)
+        emailError = Validators.validateEmail(email)
+        phoneError = Validators.validatePhone(phone)
+        passwordError = Validators.validatePassword(password)
+        confirmPasswordError = Validators.validateConfirmPassword(password, confirmPassword)
+        val isValid = listOf(nameError, emailError, phoneError, passwordError, confirmPasswordError).all { it == null }
         return isValid
     }
 
@@ -214,6 +175,8 @@ fun RegisterScreenContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // If the password is weak, passwordError shows one red suggestion message
+                    // under this field listing everything that is missing (see Validators.validatePassword)
                     PetCareTextField(
                         value = password,
                         onValueChange = { password = it; passwordError = null },
@@ -224,7 +187,7 @@ fun RegisterScreenContent(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = if (passwordVisible) "Hide password" else "Show password", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     )
@@ -241,7 +204,7 @@ fun RegisterScreenContent(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         trailingIcon = {
                             IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                                Icon(if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     )

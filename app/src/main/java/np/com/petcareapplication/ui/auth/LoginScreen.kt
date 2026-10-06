@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import np.com.petcareapplication.util.Validators
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BlueDark
@@ -74,16 +75,17 @@ fun LoginScreen(
         }
     }
 
+    // Errors stay for 4 seconds so there is enough time to read them
     LaunchedEffect(loginError) {
         if (loginError != null) {
-            delay(2000)
+            delay(4000)
             viewModel.clearErrors()
         }
     }
 
     LaunchedEffect(resetError) {
         if (resetError != null) {
-            delay(2000)
+            delay(4000)
             viewModel.clearErrors()
         }
     }
@@ -115,7 +117,7 @@ fun LoginScreenContent(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    
+
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -123,40 +125,25 @@ fun LoginScreenContent(
     var showResetDialog by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
 
-    // Clear login fields if error occurs (as per original logic)
+    // After a failed login, keep the email so the user only has to retype the password
     LaunchedEffect(loginError) {
         if (loginError != null) {
-            email = ""
             password = ""
         }
     }
 
     fun validate(): Boolean {
-        var isValid = true
-        if (email.isBlank()) {
-            emailError = "Email is required"
-            isValid = false
-        } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            emailError = "Invalid email format"
-            isValid = false
-        } else {
-            emailError = null
-        }
-
-        if (password.isBlank()) {
-            passwordError = "Password is required"
-            isValid = false
-        } else {
-            passwordError = null
-        }
+        emailError = Validators.validateEmail(email)
+        passwordError = if (password.isEmpty()) "Password is required" else null
+        val isValid = emailError == null && passwordError == null
         return isValid
     }
 
     if (showResetDialog) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
                 if (!isResetLoading) {
-                    showResetDialog = false 
+                    showResetDialog = false
                     onClearErrors()
                 }
             },
@@ -171,10 +158,10 @@ fun LoginScreenContent(
                         label = "Email Address",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
                     )
-                    
+
                     resetError?.let { error ->
-                        val displayedResetError = if (error.contains("no user record", ignoreCase = true) || 
-                                                     error.contains("user not found", ignoreCase = true)) {
+                        val displayedResetError = if (error.contains("no user record", ignoreCase = true) ||
+                            error.contains("user not found", ignoreCase = true)) {
                             "Email does not exist"
                         } else {
                             error
@@ -192,18 +179,18 @@ fun LoginScreenContent(
                 Button(
                     onClick = { onResetPassword(resetEmail) },
                     enabled = !isResetLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     if (isResetLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                     } else {
                         Text("Send link")
                     }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
-                    showResetDialog = false 
+                TextButton(onClick = {
+                    showResetDialog = false
                     onClearErrors()
                 }, enabled = !isResetLoading) {
                     Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -212,7 +199,7 @@ fun LoginScreenContent(
             shape = RoundedCornerShape(24.dp),
             containerColor = MaterialTheme.colorScheme.surface
         )
-        
+
         // Auto-close dialog on success
         LaunchedEffect(successMessage) {
             if (successMessage != null && successMessage.contains("reset link")) {
@@ -305,7 +292,7 @@ fun LoginScreenContent(
                 ) {
                     PetCareTextField(
                         value = email,
-                        onValueChange = { 
+                        onValueChange = {
                             email = it
                             if (emailError != null) emailError = null
                         },
@@ -319,7 +306,7 @@ fun LoginScreenContent(
 
                     PetCareTextField(
                         value = password,
-                        onValueChange = { 
+                        onValueChange = {
                             password = it
                             if (passwordError != null) passwordError = null
                         },
@@ -332,7 +319,7 @@ fun LoginScreenContent(
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(
                                     imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -340,9 +327,9 @@ fun LoginScreenContent(
                     )
 
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                        TextButton(onClick = { 
+                        TextButton(onClick = {
                             resetEmail = email
-                            showResetDialog = true 
+                            showResetDialog = true
                         }) {
                             Text(
                                 text = "Forgot Password?",
@@ -399,7 +386,7 @@ fun LoginScreenContent(
                     PetCareButton(
                         text = "Login",
                         isLoading = isLoginLoading,
-                        onClick = { 
+                        onClick = {
                             if (validate()) {
                                 onLogin(email, password)
                             }

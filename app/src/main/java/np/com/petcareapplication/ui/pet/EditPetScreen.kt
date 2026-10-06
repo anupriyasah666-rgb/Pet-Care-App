@@ -86,32 +86,40 @@ fun EditPetScreenContent(
 ) {
     var name by remember { mutableStateOf(pet.name) }
     var breed by remember { mutableStateOf(pet.breed) }
-    var age by remember { mutableStateOf(pet.age.toString()) }
-    var weight by remember { mutableStateOf(pet.weight.toString()) }
+    // Show an empty field (not "0") when age/weight were never entered
+    var age by remember { mutableStateOf(if (pet.age > 0) pet.age.toString() else "") }
+    var weight by remember { mutableStateOf(if (pet.weight > 0.0) pet.weight.toString() else "") }
     var dietary by remember { mutableStateOf(pet.dietaryPreferences) }
     var vaccination by remember { mutableStateOf(pet.vaccinationHistory) }
     var allergies by remember { mutableStateOf(pet.allergies) }
     var toys by remember { mutableStateOf(pet.favoriteToys) }
     var notes by remember { mutableStateOf(pet.notes) }
-    var imageUrl by remember { mutableStateOf(pet.imageUrl) } 
+    var imageUrl by remember { mutableStateOf(pet.imageUrl) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var breedError by remember { mutableStateOf<String?>(null) }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var weightError by remember { mutableStateOf<String?>(null) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> 
+    ) { uri: Uri? ->
         if (uri != null) {
             selectedImageUri = uri
-            imageUrl = "" 
+            imageUrl = ""
         }
     }
 
     fun validate(): Boolean {
         var isValid = true
-        if (name.isBlank()) { nameError = "Required"; isValid = false } else nameError = null
-        if (breed.isBlank()) { breedError = "Required"; isValid = false } else breedError = null
+        if (name.isBlank()) { nameError = "Pet name is required"; isValid = false } else nameError = null
+        if (breed.isBlank()) { breedError = "Breed is required"; isValid = false } else breedError = null
+        // Age and weight are optional, but if entered they must be realistic numbers
+        val ageValue = age.trim().toIntOrNull()
+        if (age.isNotBlank() && (ageValue == null || ageValue !in 0..40)) { ageError = "Enter 0-40"; isValid = false } else ageError = null
+        val weightValue = weight.trim().toDoubleOrNull()
+        if (weight.isNotBlank() && (weightValue == null || weightValue <= 0.0 || weightValue > 200.0)) { weightError = "Enter 0.1-200"; isValid = false } else weightError = null
         return isValid
     }
 
@@ -119,7 +127,7 @@ fun EditPetScreenContent(
         topBar = {
             TopAppBar(
                 title = { Text("Edit ${pet.name}", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }
             )
         }
     ) { padding ->
@@ -130,14 +138,14 @@ fun EditPetScreenContent(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Box(
-                    modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable { imagePickerLauncher.launch("image/*") },
+                    modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
                     val displayImage = selectedImageUri ?: imageUrl.ifEmpty { null }
                     if (displayImage != null) {
                         AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
-                        Icon(Icons.Default.AddAPhoto, null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AddAPhoto, contentDescription = "Add photo", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -145,11 +153,11 @@ fun EditPetScreenContent(
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Photo Link (Optional)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                         PetCareTextField(
-                            value = imageUrl, 
-                            onValueChange = { 
+                            value = imageUrl,
+                            onValueChange = {
                                 imageUrl = it
-                                if (it.isNotEmpty()) selectedImageUri = null 
-                            }, 
+                                if (it.isNotEmpty()) selectedImageUri = null
+                            },
                             label = "Image URL"
                         )
                     }
@@ -158,11 +166,11 @@ fun EditPetScreenContent(
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("General Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        PetCareTextField(value = name, onValueChange = { name = it }, label = "Pet Name", error = nameError)
-                        PetCareTextField(value = breed, onValueChange = { breed = it }, label = "Breed", error = breedError)
+                        PetCareTextField(value = name, onValueChange = { name = it; nameError = null }, label = "Pet Name", error = nameError)
+                        PetCareTextField(value = breed, onValueChange = { breed = it; breedError = null }, label = "Breed", error = breedError)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PetCareTextField(value = age, onValueChange = { age = it }, label = "Age", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            PetCareTextField(value = weight, onValueChange = { weight = it }, label = "Weight", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                            PetCareTextField(value = age, onValueChange = { age = it; ageError = null }, label = "Age (years)", error = ageError, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                            PetCareTextField(value = weight, onValueChange = { weight = it; weightError = null }, label = "Weight (kg)", error = weightError, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                         }
                     }
                 }
@@ -184,11 +192,11 @@ fun EditPetScreenContent(
                     onClick = {
                         if (validate()) {
                             val updatedPet = pet.copy(
-                                name = name, breed = breed, age = age.toIntOrNull() ?: pet.age,
-                                weight = weight.toDoubleOrNull() ?: pet.weight,
+                                name = name, breed = breed, age = age.trim().toIntOrNull() ?: 0,
+                                weight = weight.trim().toDoubleOrNull() ?: 0.0,
                                 dietaryPreferences = dietary, vaccinationHistory = vaccination,
                                 allergies = allergies, favoriteToys = toys, notes = notes,
-                                imageUrl = imageUrl 
+                                imageUrl = imageUrl
                             )
                             val finalUri = selectedImageUri ?: if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
                             onUpdatePet(updatedPet, finalUri)

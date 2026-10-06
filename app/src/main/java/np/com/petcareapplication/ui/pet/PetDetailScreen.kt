@@ -1,5 +1,6 @@
 package np.com.petcareapplication.ui.pet
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
@@ -7,6 +8,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,9 +42,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.model.Pet
+import np.com.petcareapplication.ui.components.ConfirmDeleteDialog
 import np.com.petcareapplication.ui.components.PetCareCard
+import np.com.petcareapplication.ui.components.TaskCheckCircle
 import np.com.petcareapplication.ui.theme.BluePrimary
 import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
+import np.com.petcareapplication.util.DelegationMessages
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.ExpenseViewModel
@@ -69,7 +75,7 @@ fun PetDetailScreen(
     val tasks by petViewModel.tasks.collectAsState()
     val totalSpent by expenseViewModel.totalSpent.collectAsState()
     val successMessage by petViewModel.successMessage.collectAsState()
-    
+
     val pet = pets.find { it.id == petId }
 
     // GESTURE: Shake to Reset Checklist
@@ -100,7 +106,7 @@ fun PetDetailScreen(
     }
 
     if (pet == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = BluePrimary) }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
         return
     }
 
@@ -143,82 +149,80 @@ fun PetDetailScreenContent(
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    val groupedTasks = tasks.groupBy { it.category }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var taskToDelete by remember { mutableStateOf<CareTask?>(null) }
+    val groupedTasks = tasks.groupBy { it.category.ifBlank { "Other" } }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(pet.name, fontWeight = FontWeight.ExtraBold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
-                    IconButton(onClick = { onEditPetClick(pet.id) }) { Icon(Icons.Default.Edit, null, tint = BluePrimary) }
-                    
+                    IconButton(onClick = { onEditPetClick(pet.id) }) { Icon(Icons.Default.Edit, contentDescription = "Edit ${pet.name}", tint = MaterialTheme.colorScheme.primary) }
+
                     IconButton(onClick = {
                         val header = "Care Instructions for ${pet.name}\n" +
-                                     "Allergies: ${pet.allergies.ifEmpty { "None" }}\n" +
-                                     "Diet: ${pet.dietaryPreferences.ifEmpty { "Standard" }}\n\n"
+                                "Allergies: ${pet.allergies.ifEmpty { "None" }}\n" +
+                                "Diet: ${pet.dietaryPreferences.ifEmpty { "Standard" }}\n\n"
                         val taskList = tasks.joinToString("\n\n") { task ->
                             var item = "* ${task.title} (${task.schedule})"
                             if (task.supplies.isNotEmpty()) item += "\n  Needs: ${task.supplies}"
                             if (task.notes.isNotEmpty()) item += "\n  Notes: ${task.notes}"
                             item
                         }
-                        val intent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("smsto:")
-                            putExtra("sms_body", header + taskList)
-                        }
-                        context.startActivity(intent)
-                    }) { Icon(Icons.Default.Share, null, tint = BluePrimary) }
+                        sendSms(context, header + taskList)
+                    }) { Icon(Icons.Default.Share, contentDescription = "Share whole care routine by SMS", tint = MaterialTheme.colorScheme.primary) }
 
-                    IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, null) }
+                    IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More options") }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("Clear All Tasks", color = Color.Black) },
-                            onClick = { onClearRoutine(); showMenu = false },
-                            leadingIcon = { Icon(Icons.Default.DeleteSweep, null, tint = Color.Black) }
+                            text = { Text("Clear All Tasks") },
+                            onClick = { showClearDialog = true; showMenu = false },
+                            leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete Pet", color = Color.Black) },
-                            onClick = { 
+                            text = { Text("Delete Pet", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
                                 showDeleteDialog = true
-                                showMenu = false 
+                                showMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Black) }
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                         )
                     }
                 }
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onAddTaskClick, containerColor = PinkHighlight, contentColor = Color.White, shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add Task") }
+            ExtendedFloatingActionButton(onClick = onAddTaskClick, containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary, shape = RoundedCornerShape(16.dp),
+                icon = { Icon(Icons.Default.Add, contentDescription = null) }, text = { Text("Add Task") }
             )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f)))),
+                modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)))),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item { 
-                    PetDetailedInfoCard(pet, totalSpent, onClickExpenses = { onViewExpensesClick(pet.id) }, onClickMedical = { onViewMedicalClick(pet.id) }) 
+                item {
+                    PetDetailedInfoCard(pet, totalSpent, onClickExpenses = { onViewExpensesClick(pet.id) }, onClickMedical = { onViewMedicalClick(pet.id) })
                 }
 
                 item {
                     PetCareCard {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Pet Profile Details", fontWeight = FontWeight.Bold, color = BluePrimary, fontSize = 18.sp)
-                            
+                            Text("Pet Profile Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 18.sp)
+
                             PetDetailInfoItem(label = "Dietary Preferences", value = pet.dietaryPreferences, icon = Icons.Default.Restaurant)
                             PetDetailInfoItem(label = "Allergies", value = pet.allergies, icon = Icons.Default.Warning)
                             PetDetailInfoItem(label = "Favorite Toys", value = pet.favoriteToys, icon = Icons.Default.Toys)
-                            
+
                             if (pet.notes.isNotEmpty()) {
-                                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                                 Column {
-                                    Text("General Notes", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Gray)
-                                    Text(text = pet.notes, fontSize = 14.sp, color = Color.DarkGray)
+                                    Text("General Notes", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(text = pet.notes, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -227,28 +231,29 @@ fun PetDetailScreenContent(
 
                 item {
                     Column {
-                        Text("Routine Checklist", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
-                        Text("Swipe tasks to manage • Tap edit icon to modify", fontSize = 11.sp, color = Color.Gray)
+                        Text("Routine Checklist", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("Swipe right to complete • Swipe left to delete • Send icon to delegate by SMS", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
                 groupedTasks.forEach { (category, categoryTasks) ->
                     stickyHeader {
-                        Surface(modifier = Modifier.fillMaxWidth(), color = Color.White.copy(alpha = 0.9f)) {
-                            Text(text = category, modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp), color = BluePrimary, fontWeight = FontWeight.Bold)
+                        Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)) {
+                            Text(text = category, modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
                     items(categoryTasks, key = { it.id }) { task ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 when (value) {
-                                    SwipeToDismissBoxValue.StartToEnd -> { 
+                                    SwipeToDismissBoxValue.StartToEnd -> {
                                         onToggleTask(task)
-                                        false 
+                                        false
                                     }
-                                    SwipeToDismissBoxValue.EndToStart -> { 
-                                        onDeleteTask(task.id)
-                                        true 
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        // Ask first; returning false snaps the card back into place
+                                        taskToDelete = task
+                                        false
                                     }
                                     else -> false
                                 }
@@ -260,19 +265,34 @@ fun PetDetailScreenContent(
                                 val color = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Color(0xFF4CAF50) else Color(0xFFE57373)
                                 Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(color).padding(horizontal = 24.dp),
                                     contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                ) { Icon(if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Icons.Default.CheckCircle else Icons.Default.Delete, null) }
+                                ) { Icon(if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Icons.Default.CheckCircle else Icons.Default.Delete, contentDescription = null, tint = Color.White) }
                             },
-                            content = { 
+                            content = {
                                 EnhancedTaskItem(
-                                    task = task, 
-                                    onToggle = { onToggleTask(task) }, 
-                                    onEditClick = { onEditTaskClick(task.id) }
-                                ) 
+                                    task = task,
+                                    onToggle = { onToggleTask(task) },
+                                    onEditClick = { onEditTaskClick(task.id) },
+                                    // DELEGATE AN ITEM: text this one task (plus pet safety info) to a sitter
+                                    onDelegateClick = {
+                                        sendSms(
+                                            context,
+                                            DelegationMessages.forTask(
+                                                petName = pet.name,
+                                                petAllergies = pet.allergies,
+                                                petDiet = pet.dietaryPreferences,
+                                                taskTitle = task.title,
+                                                taskSchedule = task.schedule,
+                                                taskSupplies = task.supplies,
+                                                taskNotes = task.notes
+                                            )
+                                        )
+                                    }
+                                )
                             }
                         )
                     }
                 }
-                
+
                 if (tasks.isEmpty()) { item { EmptyRoutinePlaceholder() } }
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
@@ -284,7 +304,8 @@ fun PetDetailScreenContent(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF2E7D32),
+                    // Deletions use deep pink, everything else green (fixed colours stay readable in dark mode)
+                    color = if (successMessage == "Task is deleted") Color(0xFFC2185B) else Color(0xFF2E7D32),
                     contentColor = Color.White,
                     shadowElevation = 8.dp
                 ) {
@@ -299,22 +320,30 @@ fun PetDetailScreenContent(
             }
 
             if (showDeleteDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteDialog = false },
-                    title = { Text("Delete Pet Profile?", fontWeight = FontWeight.Bold) },
-                    text = { Text("Are you sure you want to remove ${pet.name}? This will delete all tasks and records associated with them.") },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                onDeletePet()
-                                showDeleteDialog = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                        ) { Text("Delete") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
-                    }
+                ConfirmDeleteDialog(
+                    title = "Delete Pet Profile?",
+                    message = "Are you sure you want to remove ${pet.name}? This will delete all tasks and records associated with them.",
+                    onConfirm = { onDeletePet(); showDeleteDialog = false },
+                    onDismiss = { showDeleteDialog = false }
+                )
+            }
+
+            if (showClearDialog) {
+                ConfirmDeleteDialog(
+                    title = "Clear all tasks?",
+                    message = "This removes every task in ${pet.name}'s care routine. This cannot be undone.",
+                    confirmText = "Clear all",
+                    onConfirm = { onClearRoutine(); showClearDialog = false },
+                    onDismiss = { showClearDialog = false }
+                )
+            }
+
+            taskToDelete?.let { task ->
+                ConfirmDeleteDialog(
+                    title = "Delete task?",
+                    message = "\"${task.title}\" will be removed from ${pet.name}'s routine.",
+                    onConfirm = { onDeleteTask(task.id); taskToDelete = null },
+                    onDismiss = { taskToDelete = null }
                 )
             }
         }
@@ -324,11 +353,11 @@ fun PetDetailScreenContent(
 @Composable
 fun PetDetailInfoItem(label: String, value: String, icon: ImageVector) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = BluePrimary, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(12.dp))
         Column {
-            Text(text = label, fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-            Text(text = value.ifEmpty { "Not specified" }, fontSize = 14.sp, color = Color.Black)
+            Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+            Text(text = value.ifEmpty { "Not specified" }, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -338,33 +367,33 @@ fun PetDetailedInfoCard(pet: Pet, totalSpent: Double, onClickExpenses: () -> Uni
     PetCareCard {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(modifier = Modifier.size(80.dp), shape = RoundedCornerShape(20.dp), color = BluePrimary.copy(alpha = 0.1f)) {
+                Surface(modifier = Modifier.size(80.dp), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
                     Box(contentAlignment = Alignment.Center) {
                         if (pet.imageUrl.isNotEmpty()) {
-                            AsyncImage(model = pet.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop)
-                        } else { Icon(Icons.Default.Pets, null, modifier = Modifier.size(40.dp), tint = BluePrimary) }
+                            AsyncImage(model = pet.imageUrl, contentDescription = "Photo of ${pet.name}", modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Crop)
+                        } else { Icon(Icons.Default.Pets, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary) }
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = pet.name, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = BluePrimary)
-                    Text(text = pet.breed, color = Color.Gray, fontSize = 14.sp)
+                    Text(text = pet.name, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                    Text(text = pet.breed, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
                         InfoBadge(text = "${pet.age} yrs", icon = Icons.Default.Cake)
-                        InfoBadge(text = "${pet.weight} kg", icon = Icons.Default.Scale, color = PinkHighlight)
+                        InfoBadge(text = "${pet.weight} kg", icon = Icons.Default.Scale, color = MaterialTheme.colorScheme.secondary)
                     }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = Color.LightGray.copy(alpha = 0.3f))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Total Spent", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                    Text(text = "$" + String.format(Locale.US, "%.2f", totalSpent), fontWeight = FontWeight.Black, color = BluePrimary, fontSize = 18.sp)
+                    Text("Total Spent", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                    Text(text = "$" + String.format(Locale.US, "%.2f", totalSpent), fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, fontSize = 18.sp)
                 }
-                
+
                 Button(
                     onClick = onClickExpenses,
-                    colors = ButtonDefaults.buttonColors(containerColor = BluePrimary, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.height(48.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp)
@@ -376,7 +405,7 @@ fun PetDetailedInfoCard(pet: Pet, totalSpent: Double, onClickExpenses: () -> Uni
 
                 Button(
                     onClick = onClickMedical,
-                    colors = ButtonDefaults.buttonColors(containerColor = PinkHighlight, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.height(48.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp)
@@ -391,7 +420,7 @@ fun PetDetailedInfoCard(pet: Pet, totalSpent: Double, onClickExpenses: () -> Uni
 }
 
 @Composable
-fun InfoBadge(text: String, icon: ImageVector, color: Color = BluePrimary) {
+fun InfoBadge(text: String, icon: ImageVector, color: Color = MaterialTheme.colorScheme.primary) {
     Surface(shape = RoundedCornerShape(12.dp), color = color.copy(alpha = 0.1f)) {
         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, modifier = Modifier.size(11.dp), tint = color)
@@ -402,48 +431,32 @@ fun InfoBadge(text: String, icon: ImageVector, color: Color = BluePrimary) {
 }
 
 @Composable
-fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Unit) {
+fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Unit, onDelegateClick: () -> Unit = {}) {
     PetCareCard {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Task Circle on top left
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(if (task.isCompleted) PinkHighlight else Color.Transparent)
-                        .border(
-                            width = 2.dp,
-                            color = if (task.isCompleted) PinkHighlight else Color.LightGray.copy(alpha = 0.5f),
-                            shape = CircleShape
-                        )
-                        .clickable { onToggle() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (task.isCompleted) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
+                TaskCheckCircle(checked = task.isCompleted, taskTitle = task.title, onToggle = onToggle)
+                Spacer(modifier = Modifier.width(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = task.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if (task.isCompleted) Color.Gray else Color.Black)
-                    Text(text = task.schedule, fontSize = 12.sp, color = Color.Gray)
+                    Text(text = task.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                    Text(text = task.schedule, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                IconButton(
-                    onClick = onEditClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
+                // Delegate this single task by SMS
+                IconButton(onClick = onDelegateClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Delegate ${task.title} by SMS",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                IconButton(onClick = onEditClick) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Task",
-                        tint = BluePrimary.copy(alpha = 0.7f),
+                        contentDescription = "Edit ${task.title}",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -451,10 +464,10 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Un
             if (task.supplies.isNotEmpty() || task.notes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 if (task.supplies.isNotEmpty()) {
-                    Text(text = "Supplies: ${task.supplies}", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                    Text(text = "Supplies: ${task.supplies}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                 }
                 if (task.notes.isNotEmpty()) {
-                    Text(text = "Instructions: ${task.notes}", fontSize = 12.sp, color = Color.Gray)
+                    Text(text = "Instructions: ${task.notes}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -464,9 +477,9 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Un
 @Composable
 fun EmptyRoutinePlaceholder() {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.AutoMirrored.Filled.EventNote, null, modifier = Modifier.size(40.dp), tint = Color.LightGray)
+        Icon(Icons.AutoMirrored.Filled.EventNote, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.outline)
         Spacer(modifier = Modifier.height(16.dp))
-        Text("No tasks added for this pet", color = Color.Gray, fontWeight = FontWeight.Medium)
+        Text("No tasks added for this pet", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -506,5 +519,23 @@ fun PetDetailScreenPreview() {
             onClearRoutine = {},
             onDeletePet = {}
         )
+    }
+}
+
+/**
+ * Opens the phone's SMS app with the message already filled in, so the user just picks
+ * a contact and taps send. ACTION_SENDTO with "smsto:" means only SMS apps can handle it,
+ * and no SEND_SMS permission is needed because the user sends the message themselves.
+ * If the device has no SMS app (e.g. some tablets), a message is shown instead of crashing.
+ */
+fun sendSms(context: Context, body: String) {
+    val intent = Intent(Intent.ACTION_SENDTO).apply {
+        data = Uri.parse("smsto:")
+        putExtra("sms_body", body)
+    }
+    try {
+        context.startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "No SMS app found on this device", Toast.LENGTH_SHORT).show()
     }
 }

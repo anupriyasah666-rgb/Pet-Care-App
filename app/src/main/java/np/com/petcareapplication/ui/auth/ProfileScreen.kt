@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import np.com.petcareapplication.model.User
+import np.com.petcareapplication.util.Validators
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
@@ -82,30 +83,13 @@ fun ProfileScreenContent(
         }
     }
 
+    // Only enable "Update Profile" once something has actually changed
+    val hasChanges = userData != null && (name.trim() != userData.name || phone != userData.phoneNumber)
+
     fun validate(): Boolean {
-        var isValid = true
-        val trimmedName = name.trim()
-
-        if (trimmedName.isEmpty()) {
-            nameError = "Full name is required"
-            isValid = false
-        } else if (trimmedName.split("\\s+".toRegex()).filter { it.isNotBlank() }.size < 2) {
-            nameError = "Please enter at least two names (First and Last name)"
-            isValid = false
-        } else if (!trimmedName.all { it.isLetter() || it.isWhitespace() }) {
-            nameError = "Name should only contain letters"
-            isValid = false
-        } else {
-            nameError = null
-        }
-
-        if (phone.length != 10) {
-            phoneError = "Phone number must be exactly 10 digits"
-            isValid = false
-        } else {
-            phoneError = null
-        }
-
+        nameError = Validators.validateFullName(name)
+        phoneError = Validators.validatePhone(phone)
+        val isValid = nameError == null && phoneError == null
         return isValid
     }
 
@@ -118,7 +102,7 @@ fun ProfileScreenContent(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
@@ -128,7 +112,7 @@ fun ProfileScreenContent(
                 .padding(padding)
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))
+                        colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
                     )
                 )
         ) {
@@ -143,22 +127,22 @@ fun ProfileScreenContent(
                 Surface(
                     modifier = Modifier.size(100.dp),
                     shape = RoundedCornerShape(32.dp),
-                    color = BluePrimary.copy(alpha = 0.1f)
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.Person,
                             contentDescription = null,
                             modifier = Modifier.size(50.dp),
-                            tint = BluePrimary
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
                 Text(
-                    text = userData?.email ?: "",
+                    text = if (userData?.email.isNullOrBlank()) "" else "Signed in as ${userData?.email}",
                     fontSize = 14.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -169,10 +153,11 @@ fun ProfileScreenContent(
                         val filtered = input.filter { it.isLetter() || it.isWhitespace() }
                         name = filtered
                         nameError = null
+                        onClearErrors()
                     },
                     label = "Full Name",
                     error = nameError,
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BluePrimary) },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
                         keyboardType = KeyboardType.Text
@@ -187,11 +172,12 @@ fun ProfileScreenContent(
                             phone = filtered
                         }
                         phoneError = null
+                        onClearErrors()
                     },
                     label = "Phone Number",
                     error = phoneError,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = BluePrimary) }
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                 )
 
                 if (profileError != null) {
@@ -227,11 +213,12 @@ fun ProfileScreenContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 PetCareButton(
                     text = "Update Profile",
                     isLoading = isProfileLoading,
+                    enabled = hasChanges,
                     onClick = {
                         if (validate()) {
                             onUpdateProfile(name.trim(), phone)

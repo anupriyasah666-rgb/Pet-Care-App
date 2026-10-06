@@ -53,7 +53,7 @@ fun EditTaskScreen(
     val errorMessage by petViewModel.errorMessage.collectAsState()
 
     if (task == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = BluePrimary) }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
         return
     }
 
@@ -81,7 +81,7 @@ fun EditTaskScreenContent(
 ) {
     val context = LocalContext.current
     var title by remember { mutableStateOf(task.title) }
-    var category by remember { mutableStateOf(task.category) }
+    var category by remember { mutableStateOf(task.category.ifBlank { "Other" }) }
     var notes by remember { mutableStateOf(task.notes) }
     var supplies by remember { mutableStateOf(task.supplies) }
     var type by remember { mutableStateOf(task.type) }
@@ -94,10 +94,17 @@ fun EditTaskScreenContent(
     val calendar = Calendar.getInstance().apply { timeInMillis = if (task.dueDate > 0) task.dueDate else System.currentTimeMillis() }
     var selectedDate by remember { mutableStateOf(calendar) }
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    var categoryExpanded by remember { mutableStateOf(false) }
     var dayExpanded by remember { mutableStateOf(false) }
+    var titleError by remember { mutableStateOf<String?>(null) }
+    var scheduleError by remember { mutableStateOf<String?>(null) }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? -> 
+    fun validate(): Boolean {
+        titleError = if (title.isBlank()) "Title is required" else null
+        scheduleError = if (timeSchedule.isBlank()) "Please choose a time" else null
+        return titleError == null && scheduleError == null
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) { selectedImageUri = uri; manualImageUrl = "" }
     }
     val datePickerDialog = DatePickerDialog(context, { _, y, m, d ->
@@ -105,19 +112,22 @@ fun EditTaskScreenContent(
     }, selectedDate.get(Calendar.YEAR), selectedDate.get(Calendar.MONTH), selectedDate.get(Calendar.DAY_OF_MONTH))
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Edit Task", fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } }) }
+        topBar = { TopAppBar(title = { Text("Edit Task", fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }) }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))))) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(modifier = Modifier.size(100.dp).clip(CircleShape).background(BluePrimary.copy(alpha = 0.1f)).clickable { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
                     val displayImage = selectedImageUri ?: manualImageUrl.ifEmpty { null }
                     if (displayImage != null) { AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-                    else { Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary) }
+                    else { Icon(Icons.Default.AddAPhoto, contentDescription = "Add photo", tint = MaterialTheme.colorScheme.primary) }
                 }
                 PetCareTextField(value = manualImageUrl, onValueChange = { manualImageUrl = it; if (it.isNotEmpty()) selectedImageUri = null }, label = "Image URL")
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 8.dp) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        PetCareTextField(value = title, onValueChange = { title = it }, label = "Title")
+                        Text("Task Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        PetCareTextField(value = title, onValueChange = { title = it; if (titleError != null) titleError = null }, label = "Title", error = titleError)
+                        CategoryDropdown(selected = category, onSelected = { category = it })
+                        Text("How often?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selected = type == "DAILY", onClick = { type = "DAILY" }, label = { Text("Daily") })
                             FilterChip(selected = type == "WEEKLY", onClick = { type = "WEEKLY" }, label = { Text("Weekly") })
@@ -125,21 +135,30 @@ fun EditTaskScreenContent(
                         }
                         if (type == "WEEKLY") {
                             Box {
-                                OutlinedTextField(value = selectedDay, onValueChange = {}, label = { Text("Day") }, modifier = Modifier.fillMaxWidth(), readOnly = true, trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } }, shape = RoundedCornerShape(16.dp))
+                                OutlinedTextField(value = selectedDay, onValueChange = {}, label = { Text("Day") }, modifier = Modifier.fillMaxWidth(), readOnly = true, trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose day") } }, shape = RoundedCornerShape(16.dp))
                                 DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }) { daysOfWeek.forEach { day -> DropdownMenuItem(text = { Text(day) }, onClick = { selectedDay = day; dayExpanded = false }) } }
                             }
                         }
                         if (type == "ONE-TIME") {
-                            OutlinedTextField(value = dateFormatter.format(selectedDate.time), onValueChange = {}, label = { Text("Date") }, modifier = Modifier.fillMaxWidth(), readOnly = true, leadingIcon = { Icon(Icons.Default.CalendarMonth, null, tint = BluePrimary) }, trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, null) } }, shape = RoundedCornerShape(16.dp))
+                            OutlinedTextField(value = dateFormatter.format(selectedDate.time), onValueChange = {}, label = { Text("Date") }, modifier = Modifier.fillMaxWidth(), readOnly = true, leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, contentDescription = "Choose date") } }, shape = RoundedCornerShape(16.dp))
                         }
-                        PetCareTextField(value = timeSchedule, onValueChange = { timeSchedule = it }, label = "Time")
+                        TimePickerField(time = timeSchedule, onTimeSelected = { timeSchedule = it; scheduleError = null }, error = scheduleError)
+                    }
+                }
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Supplies & Instructions", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        PetCareTextField(value = supplies, onValueChange = { supplies = it }, label = "Supplies needed (optional)")
+                        OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Instructions / notes (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 3, shape = RoundedCornerShape(16.dp))
                     }
                 }
                 PetCareButton(text = "Update Task", isLoading = isUploading, onClick = {
-                    val finalSchedule = when(type) { "WEEKLY" -> "Every $selectedDay at $timeSchedule"; "ONE-TIME" -> "${dateFormatter.format(selectedDate.time)} at $timeSchedule"; else -> timeSchedule }
-                    val updatedTask = task.copy(title = title, schedule = finalSchedule, notes = notes, supplies = supplies, type = type, imageUrl = manualImageUrl, dueDate = selectedDate.timeInMillis)
-                    val finalUri = selectedImageUri ?: if (manualImageUrl.isNotEmpty()) Uri.parse(manualImageUrl) else null
-                    onUpdateTask(updatedTask, finalUri)
+                    if (validate()) {
+                        val finalSchedule = when(type) { "WEEKLY" -> "Every $selectedDay at $timeSchedule"; "ONE-TIME" -> "${dateFormatter.format(selectedDate.time)} at $timeSchedule"; else -> timeSchedule }
+                        val updatedTask = task.copy(title = title, category = category, schedule = finalSchedule, notes = notes, supplies = supplies, type = type, imageUrl = manualImageUrl, dueDate = selectedDate.timeInMillis)
+                        val finalUri = selectedImageUri ?: if (manualImageUrl.isNotEmpty()) Uri.parse(manualImageUrl) else null
+                        onUpdateTask(updatedTask, finalUri)
+                    }
                 })
             }
             if (successMessage != null) { Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp), shape = RoundedCornerShape(24.dp), color = Color(0xFF2E7D32), contentColor = Color.White, shadowElevation = 8.dp) { Text(text = successMessage, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) } }

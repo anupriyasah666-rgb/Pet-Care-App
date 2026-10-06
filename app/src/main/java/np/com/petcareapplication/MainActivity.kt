@@ -5,9 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -44,15 +42,12 @@ fun PetCareApp() {
     val authViewModel: AuthViewModel = viewModel()
     val petViewModel: PetViewModel = viewModel()
 
-    // Always force a logout when the app process starts.
-    LaunchedEffect(Unit) {
-        authViewModel.logout()
+    // Firebase Auth securely persists the session on the device, so a returning user
+    // goes straight to the dashboard. Only users who are signed out see the Login screen.
+    // The start destination is decided once, when the nav graph is first created.
+    val startDestination = remember {
+        if (authViewModel.user.value != null) Screen.Home.route else Screen.Login.route
     }
-
-    val user by authViewModel.user.collectAsState()
-
-    // Login is always the first screen the user sees
-    val startDestination = Screen.Login.route
 
     NavHost(
         navController = navController,
@@ -73,7 +68,10 @@ fun PetCareApp() {
         composable(Screen.Register.route) {
             RegisterScreen(
                 viewModel = authViewModel,
-                onNavigateToLogin = { navController.navigate(Screen.Login.route) },
+                // Go back to the existing Login screen instead of stacking a second one
+                onNavigateToLogin = {
+                    if (!navController.popBackStack()) navController.navigate(Screen.Login.route)
+                },
                 onRegisterSuccess = {
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
@@ -202,13 +200,13 @@ fun PetCareApp() {
                 petId = petId,
                 onBack = { navController.popBackStack() },
                 onAddExpenseClick = {
-                    navController.navigate("add_expense/$petId")
+                    navController.navigate(Screen.AddExpense.createRoute(petId))
                 }
             )
         }
 
         composable(
-            route = "add_expense/{petId}",
+            route = Screen.AddExpense.route,
             arguments = listOf(navArgument("petId") { type = NavType.StringType })
         ) { backStackEntry ->
             val petId = backStackEntry.arguments?.getString("petId") ?: ""
@@ -226,7 +224,9 @@ fun PetCareApp() {
             val petId = backStackEntry.arguments?.getString("petId") ?: ""
             MedicalRecordScreen(
                 petId = petId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                petViewModel = petViewModel,
+                authViewModel = authViewModel
             )
         }
     }

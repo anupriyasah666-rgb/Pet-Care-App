@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import np.com.petcareapplication.model.Expense
+import np.com.petcareapplication.ui.components.ConfirmDeleteDialog
 import np.com.petcareapplication.ui.components.PetCareCard
 import np.com.petcareapplication.ui.theme.BluePrimary
 import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
@@ -39,6 +40,7 @@ fun ExpenseScreen(
 ) {
     val expenses by viewModel.expenses.collectAsState()
     val totalSpent by viewModel.totalSpent.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
 
     LaunchedEffect(petId) {
         viewModel.loadExpenses(petId)
@@ -49,7 +51,8 @@ fun ExpenseScreen(
         totalSpent = totalSpent,
         onBack = onBack,
         onAddExpenseClick = onAddExpenseClick,
-        onDeleteExpense = { viewModel.deleteExpense(it) }
+        onDeleteExpense = { viewModel.deleteExpense(it) },
+        successMessage = successMessage
     )
 }
 
@@ -60,103 +63,137 @@ fun ExpenseScreenContent(
     totalSpent: Double,
     onBack: () -> Unit,
     onAddExpenseClick: () -> Unit,
-    onDeleteExpense: (String) -> Unit
+    onDeleteExpense: (String) -> Unit,
+    successMessage: String? = null
 ) {
+    var expenseToDelete by remember { mutableStateOf<Expense?>(null) }
+
+    expenseToDelete?.let { expense ->
+        ConfirmDeleteDialog(
+            title = "Delete expense?",
+            message = "Remove the ${expense.category} expense of $${String.format(Locale.US, "%.2f", expense.amount)}? Your total will be updated.",
+            onConfirm = { onDeleteExpense(expense.id); expenseToDelete = null },
+            onDismiss = { expenseToDelete = null }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Expense Summary", fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddExpenseClick,
-                containerColor = BluePrimary,
-                contentColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(16.dp),
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text("Log Expense") }
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))
-                    )
-                )
-        ) {
-            Surface(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = BluePrimary,
-                shadowElevation = 8.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Total Amount Spent", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$${String.format(Locale.US, "%.2f", totalSpent)}",
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                        )
                     )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Transaction History",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = BluePrimary
-                )
                 Surface(
-                    color = BluePrimary.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    shadowElevation = 8.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Total Amount Spent", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$${String.format(Locale.US, "%.2f", totalSpent)}",
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${expenses.size} records",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 12.sp,
+                        text = "Transaction History",
                         fontWeight = FontWeight.Bold,
-                        color = BluePrimary
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.primary
                     )
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "${expenses.size} records",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                if (expenses.isEmpty()) {
+                    EmptyExpensePlaceholder()
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Newest spending first
+                        items(expenses.sortedByDescending { it.date }, key = { it.id }) { expense ->
+                            ExpenseItem(expense = expense, onDelete = { expenseToDelete = expense })
+                        }
+                        item { Spacer(modifier = Modifier.height(80.dp)) }
+                    }
                 }
             }
 
-            if (expenses.isEmpty()) {
-                EmptyExpensePlaceholder()
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+            // Confirmation banner after a delete (fixed deep pink keeps white text readable in dark mode)
+            if (successMessage != null) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xFFC2185B),
+                    contentColor = Color.White,
+                    shadowElevation = 8.dp
                 ) {
-                    items(expenses) { expense ->
-                        ExpenseItem(expense = expense, onDelete = { onDeleteExpense(expense.id) })
-                    }
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                    Text(
+                        text = successMessage,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -166,7 +203,7 @@ fun ExpenseScreenContent(
 @Composable
 fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    
+
     PetCareCard {
         Row(
             modifier = Modifier
@@ -177,7 +214,7 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
             Surface(
                 modifier = Modifier.size(52.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = PinkHighlight.copy(alpha = 0.1f)
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -186,10 +223,11 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
                             "medical" -> Icons.Default.MedicalServices
                             "grooming" -> Icons.Default.ContentCut
                             "toys" -> Icons.Default.Toys
+                            "medication" -> Icons.Default.Medication
                             else -> Icons.AutoMirrored.Filled.ReceiptLong
                         },
                         contentDescription = null,
-                        tint = PinkHighlight,
+                        tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -199,11 +237,11 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = expense.category, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(text = expense.description, fontSize = 13.sp, color = Color.Gray, maxLines = 1)
+                Text(text = expense.description, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 Text(
                     text = dateFormatter.format(Date(expense.date)),
                     fontSize = 11.sp,
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.outline,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -212,11 +250,11 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
                 Text(
                     text = "-$${String.format(Locale.US, "%.2f", expense.amount)}",
                     fontWeight = FontWeight.Black,
-                    color = Color(0xFFD32F2F),
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 16.sp
                 )
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = "Delete", tint = Color.LightGray, modifier = Modifier.size(20.dp))
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = "Delete ${expense.category} expense", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -235,20 +273,20 @@ fun EmptyExpensePlaceholder() {
         Surface(
             modifier = Modifier.size(80.dp),
             shape = CircleShape,
-            color = Color.LightGray.copy(alpha = 0.1f)
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.AccountBalanceWallet,
                     contentDescription = null,
                     modifier = Modifier.size(40.dp),
-                    tint = Color.LightGray
+                    tint = MaterialTheme.colorScheme.outline
                 )
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Text("No expenses yet", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text("Keep track of your pet spending here", color = Color.LightGray, fontSize = 14.sp)
+        Text("No expenses yet", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Keep track of your pet spending here", color = MaterialTheme.colorScheme.outline, fontSize = 14.sp)
     }
 }
 

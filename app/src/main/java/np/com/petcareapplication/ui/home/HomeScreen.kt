@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +37,7 @@ import coil.compose.AsyncImage
 import np.com.petcareapplication.model.Pet
 import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.ui.components.PetCareCard
+import np.com.petcareapplication.ui.components.TaskCheckCircle
 import np.com.petcareapplication.ui.theme.BluePrimary
 import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
@@ -137,7 +139,7 @@ fun HomeScreenContent(
                         modifier = Modifier
                             .padding(end = 4.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable { onProfileClick() }
+                            .clickable(onClickLabel = "Open profile", role = Role.Button) { onProfileClick() }
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -145,13 +147,13 @@ fun HomeScreenContent(
                         Icon(Icons.Default.AccountCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                         Text("Profile", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                     }
-                    
+
                     // Logout - Optimized layout to avoid cropping
                     Column(
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable { onLogout() }
+                            .clickable(onClickLabel = "Log out", role = Role.Button) { onLogout() }
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -174,20 +176,20 @@ fun HomeScreenContent(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.Add, null) },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text("Add Pet") }
             )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                
+
                 // Dynamic Banner showing tasks left
-                item { 
+                item {
                     ConsolidatedStatusSection(
-                        pendingTasks = allTasks.count { !it.isCompleted }, 
-                        totalTasks = allTasks.size 
-                    ) 
+                        pendingTasks = allTasks.count { !it.isCompleted },
+                        totalTasks = allTasks.size
+                    )
                 }
 
                 item { Text(text = "My Pets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
@@ -201,44 +203,45 @@ fun HomeScreenContent(
                 if (allTasks.isNotEmpty()) {
                     item { Spacer(modifier = Modifier.height(8.dp)) }
                     item { Text(text = "Today's Routine", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
-                    
+
                     // Sorting to keep pending tasks at top
                     val sortedTasks = allTasks.sortedBy { it.isCompleted }
-                    
+
                     // Fix: Use a prefixed key to avoid collisions between Pets and Tasks in the same LazyColumn
                     items(sortedTasks, key = { "task_${it.id}" }) { task ->
                         val petName = pets.find { it.id == task.petId }?.name ?: "Pet"
                         HomeTaskItem(
-                            task = task, 
-                            petName = petName, 
+                            task = task,
+                            petName = petName,
                             onComplete = { onToggleTask(task) },
                             onEdit = { onEditTaskClick(task.id) }
                         )
                     }
                 }
-                
+
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
             if (successMessage != null) {
-                // Color logic: Green for positive actions, Pink for "Pet deleted", else black
+                // Fixed dark colours keep the white text readable in both light and dark mode:
+                // green for positive actions, deep pink for deletions, dark grey otherwise.
                 val bgColor = when (successMessage) {
                     "Pet added", "Marked as completed", "Marked as undone", "Today's checklist reset!", "Task added", "Profile updated successfully", "Task updated successfully", "Care routine cleared successfully", "Health record saved" -> Color(0xFF2E7D32) // Green
-                    "Pet deleted" -> PinkHighlight
-                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    "Pet deleted", "Task is deleted" -> Color(0xFFC2185B) // Deep pink
+                    else -> Color(0xFF323232) // Material snackbar grey
                 }
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 96.dp, start = 24.dp, end = 24.dp), // Lifted higher to avoid FAB overlap
-                    shape = RoundedCornerShape(24.dp), 
-                    color = bgColor, 
+                    shape = RoundedCornerShape(24.dp),
+                    color = bgColor,
                     contentColor = Color.White,
                     shadowElevation = 8.dp
                 ) {
                     Text(
-                        text = successMessage, 
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), 
+                        text = successMessage,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -276,50 +279,27 @@ fun ConsolidatedStatusSection(pendingTasks: Int, totalTasks: Int) {
 @Composable
 fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit: () -> Unit) {
     PetCareCard(modifier = Modifier.fillMaxWidth().clickable { onEdit() }) {
-        Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Task Circle on top left - FILL WITH PINK WHEN COMPLETED
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(if (task.isCompleted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surface)
-                    .border(
-                        width = 2.dp,
-                        color = if (task.isCompleted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        shape = CircleShape
-                    )
-                    .clickable { onComplete() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (task.isCompleted) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
+        Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TaskCheckCircle(checked = task.isCompleted, taskTitle = task.title, onToggle = onComplete)
+            Spacer(modifier = Modifier.width(4.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(text = petName, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(text = " • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        text = task.title, 
-                        fontWeight = FontWeight.Bold, 
+                        text = task.title,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Text(text = task.schedule, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            
-            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+
+            IconButton(onClick = onEdit) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Task",
+                    contentDescription = "Edit ${task.title}",
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -334,7 +314,7 @@ fun PetSummaryItem(pet: Pet, onClick: () -> Unit) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
                 if (pet.imageUrl.isNotEmpty()) {
-                    AsyncImage(model = pet.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                    AsyncImage(model = pet.imageUrl, contentDescription = "Photo of ${pet.name}", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                 } else {
                     Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Pets, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) }
                 }
@@ -354,6 +334,7 @@ fun EmptyHomeState() {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(Icons.Default.Pets, null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
         Text(text = "Your pet list is empty", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = "Tap \"Add Pet\" below to get started", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
     }
 }
 

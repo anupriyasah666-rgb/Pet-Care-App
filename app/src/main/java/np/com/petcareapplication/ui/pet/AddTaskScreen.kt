@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -91,10 +92,10 @@ fun AddTaskScreenContent(
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> 
+    ) { uri: Uri? ->
         if (uri != null) {
             selectedImageUri = uri
-            imageUrl = "" 
+            imageUrl = ""
         }
     }
 
@@ -104,31 +105,33 @@ fun AddTaskScreenContent(
 
     fun validate(): Boolean {
         var isValid = true
-        if (title.isBlank()) { titleError = "Required"; isValid = false } else titleError = null
-        if (timeSchedule.isBlank()) { scheduleError = "Required"; isValid = false } else scheduleError = null
+        if (title.isBlank()) { titleError = "Title is required"; isValid = false } else titleError = null
+        if (timeSchedule.isBlank()) { scheduleError = "Please choose a time"; isValid = false } else scheduleError = null
         return isValid
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Add Care Task", fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }) }
+        topBar = { TopAppBar(title = { Text("Add Care Task", fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }) }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))))) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(modifier = Modifier.size(100.dp).clip(CircleShape).background(BluePrimary.copy(alpha = 0.1f)).clickable { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
                     val displayImage = selectedImageUri ?: imageUrl.ifEmpty { null }
                     if (displayImage != null) { AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-                    else { Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary) }
+                    else { Icon(Icons.Default.AddAPhoto, contentDescription = "Add photo", tint = MaterialTheme.colorScheme.primary) }
                 }
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Photo Link", fontWeight = FontWeight.Bold, color = BluePrimary, fontSize = 14.sp)
+                        Text("Photo Link", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                         PetCareTextField(value = imageUrl, onValueChange = { imageUrl = it; if (it.isNotEmpty()) selectedImageUri = null }, label = "Image URL")
                     }
                 }
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 8.dp) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text("Task Details", fontWeight = FontWeight.Bold, color = BluePrimary)
-                        PetCareTextField(value = title, onValueChange = { title = it }, label = "Title", error = titleError)
+                        Text("Task Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        PetCareTextField(value = title, onValueChange = { title = it; if (titleError != null) titleError = null }, label = "Title", error = titleError)
+                        CategoryDropdown(selected = category, onSelected = { category = it })
+                        Text("How often?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selected = type == "DAILY", onClick = { type = "DAILY" }, label = { Text("Daily") })
                             FilterChip(selected = type == "WEEKLY", onClick = { type = "WEEKLY" }, label = { Text("Weekly") })
@@ -136,14 +139,21 @@ fun AddTaskScreenContent(
                         }
                         if (type == "WEEKLY") {
                             Box {
-                                OutlinedTextField(value = selectedDay, onValueChange = {}, label = { Text("Day") }, modifier = Modifier.fillMaxWidth(), readOnly = true, trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } }, shape = RoundedCornerShape(16.dp))
+                                OutlinedTextField(value = selectedDay, onValueChange = {}, label = { Text("Day") }, modifier = Modifier.fillMaxWidth(), readOnly = true, trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose day") } }, shape = RoundedCornerShape(16.dp))
                                 DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }) { daysOfWeek.forEach { day -> DropdownMenuItem(text = { Text(day) }, onClick = { selectedDay = day; dayExpanded = false }) } }
                             }
                         }
                         if (type == "ONE-TIME") {
-                            OutlinedTextField(value = dateFormatter.format(selectedDate.time), onValueChange = {}, label = { Text("Date") }, modifier = Modifier.fillMaxWidth(), readOnly = true, leadingIcon = { Icon(Icons.Default.CalendarMonth, null, tint = BluePrimary) }, trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, null) } }, shape = RoundedCornerShape(16.dp))
+                            OutlinedTextField(value = dateFormatter.format(selectedDate.time), onValueChange = {}, label = { Text("Date") }, modifier = Modifier.fillMaxWidth(), readOnly = true, leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, contentDescription = "Choose date") } }, shape = RoundedCornerShape(16.dp))
                         }
-                        PetCareTextField(value = timeSchedule, onValueChange = { timeSchedule = it }, label = "Time", error = scheduleError)
+                        TimePickerField(time = timeSchedule, onTimeSelected = { timeSchedule = it; scheduleError = null }, error = scheduleError)
+                    }
+                }
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Supplies & Instructions", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        PetCareTextField(value = supplies, onValueChange = { supplies = it }, label = "Supplies needed (optional)")
+                        OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Instructions / notes (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 3, shape = RoundedCornerShape(16.dp))
                     }
                 }
                 PetCareButton(text = "Save Task", isLoading = isUploading, onClick = {

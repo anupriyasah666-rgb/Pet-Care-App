@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -85,25 +86,32 @@ fun AddPetScreenContent(
     var allergies by remember { mutableStateOf("") }
     var toys by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
-    var imageUrl by remember { mutableStateOf("") } 
+    var imageUrl by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var breedError by remember { mutableStateOf<String?>(null) }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var weightError by remember { mutableStateOf<String?>(null) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> 
+    ) { uri: Uri? ->
         if (uri != null) {
             selectedImageUri = uri
-            imageUrl = "" 
+            imageUrl = ""
         }
     }
 
     fun validate(): Boolean {
         var isValid = true
-        if (name.isBlank()) { nameError = "Required"; isValid = false } else nameError = null
-        if (breed.isBlank()) { breedError = "Required"; isValid = false } else breedError = null
+        if (name.isBlank()) { nameError = "Pet name is required"; isValid = false } else nameError = null
+        if (breed.isBlank()) { breedError = "Breed is required"; isValid = false } else breedError = null
+        // Age and weight are optional, but if entered they must be realistic numbers
+        val ageValue = age.trim().toIntOrNull()
+        if (age.isNotBlank() && (ageValue == null || ageValue !in 0..40)) { ageError = "Enter 0-40"; isValid = false } else ageError = null
+        val weightValue = weight.trim().toDoubleOrNull()
+        if (weight.isNotBlank() && (weightValue == null || weightValue <= 0.0 || weightValue > 200.0)) { weightError = "Enter 0.1-200"; isValid = false } else weightError = null
         return isValid
     }
 
@@ -111,11 +119,11 @@ fun AddPetScreenContent(
         topBar = {
             TopAppBar(
                 title = { Text("Add New Pet", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))))) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,52 +131,52 @@ fun AddPetScreenContent(
             ) {
                 // Photo Section
                 Box(
-                    modifier = Modifier.size(100.dp).clip(CircleShape).background(BluePrimary.copy(alpha = 0.1f)).clickable { imagePickerLauncher.launch("image/*") },
+                    modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
                     val displayImage = selectedImageUri ?: imageUrl.ifEmpty { null }
                     if (displayImage != null) {
                         AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
-                        Icon(Icons.Default.AddAPhoto, null, tint = BluePrimary)
+                        Icon(Icons.Default.AddAPhoto, contentDescription = "Add photo", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Photo Link (Optional)", fontWeight = FontWeight.Bold, color = BluePrimary, fontSize = 14.sp)
+                        Text("Photo Link (Optional)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                         PetCareTextField(
-                            value = imageUrl, 
-                            onValueChange = { 
+                            value = imageUrl,
+                            onValueChange = {
                                 imageUrl = it
-                                if (it.isNotEmpty()) selectedImageUri = null 
-                            }, 
+                                if (it.isNotEmpty()) selectedImageUri = null
+                            },
                             label = "Image URL (e.g. Pinterest link)"
                         )
-                        Text("Or tap the circle above to pick a file", fontSize = 11.sp, color = Color.Gray)
+                        Text("Or tap the circle above to pick a file", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Details", fontWeight = FontWeight.Bold, color = BluePrimary)
-                        PetCareTextField(value = name, onValueChange = { name = it }, label = "Pet Name", error = nameError)
-                        PetCareTextField(value = breed, onValueChange = { breed = it }, label = "Breed", error = breedError)
+                        Text("Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        PetCareTextField(value = name, onValueChange = { name = it; nameError = null }, label = "Pet Name", error = nameError)
+                        PetCareTextField(value = breed, onValueChange = { breed = it; breedError = null }, label = "Breed", error = breedError)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PetCareTextField(value = age, onValueChange = { age = it }, label = "Age (years)", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            PetCareTextField(value = weight, onValueChange = { weight = it }, label = "Weight (kg)", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                            PetCareTextField(value = age, onValueChange = { age = it; ageError = null }, label = "Age (years)", error = ageError, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                            PetCareTextField(value = weight, onValueChange = { weight = it; weightError = null }, label = "Weight (kg)", error = weightError, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                         }
                     }
                 }
 
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Health Info", fontWeight = FontWeight.Bold, color = BluePrimary)
+                        Text("Health Info", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         PetCareTextField(value = dietary, onValueChange = { dietary = it }, label = "Dietary Preferences")
                         PetCareTextField(value = vaccination, onValueChange = { vaccination = it }, label = "Vaccination History")
                         PetCareTextField(value = allergies, onValueChange = { allergies = it }, label = "Allergies")
                         PetCareTextField(value = toys, onValueChange = { toys = it }, label = "Favorite Toys")
-                        
+
                         OutlinedTextField(
                             value = notes,
                             onValueChange = { notes = it },
@@ -176,8 +184,8 @@ fun AddPetScreenContent(
                             modifier = Modifier.fillMaxWidth().height(100.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color.LightGray
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
                             )
                         )
                     }
@@ -190,21 +198,21 @@ fun AddPetScreenContent(
                         if (validate()) {
                             val newPet = Pet(
                                 name = name, breed = breed,
-                                age = age.toIntOrNull() ?: 0,
-                                weight = weight.toDoubleOrNull() ?: 0.0,
+                                age = age.trim().toIntOrNull() ?: 0,
+                                weight = weight.trim().toDoubleOrNull() ?: 0.0,
                                 dietaryPreferences = dietary,
                                 vaccinationHistory = vaccination,
                                 allergies = allergies,
                                 favoriteToys = toys,
                                 notes = notes,
-                                imageUrl = imageUrl 
+                                imageUrl = imageUrl
                             )
                             val finalUri = selectedImageUri ?: if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
                             onAddPet(newPet, finalUri)
                         }
                     }
                 )
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
 

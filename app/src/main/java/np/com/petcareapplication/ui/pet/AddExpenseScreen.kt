@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import np.com.petcareapplication.model.Expense
+import np.com.petcareapplication.util.Validators
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
@@ -36,9 +38,12 @@ fun AddExpenseScreen(
     viewModel: ExpenseViewModel = viewModel()
 ) {
     val successMessage by viewModel.successMessage.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
 
     AddExpenseScreenContent(
         successMessage = successMessage,
+        errorMessage = errorMessage,
+        onErrorShown = { viewModel.clearErrorMessage() },
         onBack = onBack,
         onAddExpense = { category, amount, description ->
             val newExpense = Expense(
@@ -58,33 +63,36 @@ fun AddExpenseScreen(
 fun AddExpenseScreenContent(
     successMessage: String?,
     onBack: () -> Unit,
-    onAddExpense: (String, Double, String) -> Unit
+    onAddExpense: (String, Double, String) -> Unit,
+    errorMessage: String? = null,
+    onErrorShown: () -> Unit = {}
 ) {
+    // Prevents a double tap on "Save Record" from saving the same expense twice
+    var isSaving by remember { mutableStateOf(false) }
+
+    // If saving failed, re-enable the button and hide the error after a few seconds
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) {
+            isSaving = false
+            kotlinx.coroutines.delay(3000)
+            onErrorShown()
+        }
+    }
+
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Food") }
-    
+
     var amountError by remember { mutableStateOf<String?>(null) }
     var descriptionError by remember { mutableStateOf<String?>(null) }
-    
+
     val categories = listOf("Food", "Grooming", "Medical", "Toys", "Medication", "Other")
     var categoryExpanded by remember { mutableStateOf(false) }
 
     fun validate(): Boolean {
-        var isValid = true
-        if (amount.isBlank()) {
-            amountError = "Amount is required"
-            isValid = false
-        } else if (amount.toDoubleOrNull() == null || amount.toDouble() <= 0) {
-            amountError = "Invalid amount"
-            isValid = false
-        } else amountError = null
-
-        if (description.isBlank()) {
-            descriptionError = "Description is required"
-            isValid = false
-        } else descriptionError = null
-
+        amountError = Validators.validateAmount(amount)
+        descriptionError = Validators.validateRequired(description, "Description")
+        val isValid = amountError == null && descriptionError == null
         return isValid
     }
 
@@ -94,10 +102,10 @@ fun AddExpenseScreenContent(
                 title = { Text("Log Expense", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Go back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
@@ -107,7 +115,7 @@ fun AddExpenseScreenContent(
                 .padding(padding)
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))
+                        colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
                     )
                 )
         ) {
@@ -122,7 +130,7 @@ fun AddExpenseScreenContent(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 8.dp
                 ) {
                     Column(
@@ -133,7 +141,7 @@ fun AddExpenseScreenContent(
                             text = "Spending Details",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = BluePrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
 
                         Box(modifier = Modifier.fillMaxWidth()) {
@@ -144,15 +152,15 @@ fun AddExpenseScreenContent(
                                 modifier = Modifier.fillMaxWidth(),
                                 readOnly = true,
                                 shape = RoundedCornerShape(16.dp),
-                                leadingIcon = { Icon(Icons.Default.Category, contentDescription = null, tint = BluePrimary) },
+                                leadingIcon = { Icon(Icons.Default.Category, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                                 trailingIcon = {
                                     IconButton(onClick = { categoryExpanded = true }) {
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose category")
                                     }
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = BluePrimary,
-                                    unfocusedBorderColor = Color.LightGray
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                                 )
                             )
                             DropdownMenu(
@@ -177,7 +185,7 @@ fun AddExpenseScreenContent(
                             onValueChange = { amount = it; amountError = null },
                             label = "Amount ($)",
                             error = amountError,
-                            leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = BluePrimary) },
+                            leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                         )
 
@@ -192,8 +200,8 @@ fun AddExpenseScreenContent(
                             shape = RoundedCornerShape(16.dp),
                             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color.LightGray
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
                             )
                         )
                         if (descriptionError != null) {
@@ -211,9 +219,11 @@ fun AddExpenseScreenContent(
 
                 PetCareButton(
                     text = "Save Record",
+                    isLoading = isSaving,
                     onClick = {
-                        if (validate()) {
-                            onAddExpense(category, amount.toDouble(), description)
+                        if (!isSaving && validate()) {
+                            isSaving = true
+                            onAddExpense(category, amount.trim().toDouble(), description.trim())
                         }
                     }
                 )
@@ -232,6 +242,26 @@ fun AddExpenseScreenContent(
                 ) {
                     Text(
                         text = successMessage,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // ERROR MESSAGE OVERLAY (e.g. no internet connection)
+            if (errorMessage != null) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                    shadowElevation = 8.dp
+                ) {
+                    Text(
+                        text = errorMessage,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
