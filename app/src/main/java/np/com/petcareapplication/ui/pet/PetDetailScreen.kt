@@ -11,7 +11,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +32,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,6 +41,7 @@ import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.model.Pet
 import np.com.petcareapplication.ui.components.PetCareCard
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.ExpenseViewModel
@@ -67,12 +68,9 @@ fun PetDetailScreen(
     val pets by petViewModel.pets.collectAsState()
     val tasks by petViewModel.tasks.collectAsState()
     val totalSpent by expenseViewModel.totalSpent.collectAsState()
+    val successMessage by petViewModel.successMessage.collectAsState()
     
     val pet = pets.find { it.id == petId }
-    var showMenu by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    val groupedTasks = tasks.groupBy { it.category }
 
     // GESTURE: Shake to Reset Checklist
     DisposableEffect(Unit) {
@@ -106,6 +104,47 @@ fun PetDetailScreen(
         return
     }
 
+    PetDetailScreenContent(
+        pet = pet,
+        tasks = tasks,
+        totalSpent = totalSpent,
+        successMessage = successMessage,
+        onBack = onBack,
+        onAddTaskClick = onAddTaskClick,
+        onEditPetClick = onEditPetClick,
+        onEditTaskClick = onEditTaskClick,
+        onViewExpensesClick = onViewExpensesClick,
+        onViewMedicalClick = onViewMedicalClick,
+        onToggleTask = { petViewModel.toggleTaskCompletion(it) },
+        onDeleteTask = { petViewModel.deleteTask(it) },
+        onClearRoutine = { petViewModel.clearRoutine(petId) },
+        onDeletePet = { petViewModel.deletePet(petId) { onBack() } }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun PetDetailScreenContent(
+    pet: Pet,
+    tasks: List<CareTask>,
+    totalSpent: Double,
+    successMessage: String?,
+    onBack: () -> Unit,
+    onAddTaskClick: () -> Unit,
+    onEditPetClick: (String) -> Unit,
+    onEditTaskClick: (String) -> Unit,
+    onViewExpensesClick: (String) -> Unit,
+    onViewMedicalClick: (String) -> Unit,
+    onToggleTask: (CareTask) -> Unit,
+    onDeleteTask: (String) -> Unit,
+    onClearRoutine: () -> Unit,
+    onDeletePet: () -> Unit
+) {
+    val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val groupedTasks = tasks.groupBy { it.category }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -135,7 +174,7 @@ fun PetDetailScreen(
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
                             text = { Text("Clear All Tasks", color = Color.Black) },
-                            onClick = { petViewModel.clearRoutine(petId); showMenu = false },
+                            onClick = { onClearRoutine(); showMenu = false },
                             leadingIcon = { Icon(Icons.Default.DeleteSweep, null, tint = Color.Black) }
                         )
                         DropdownMenuItem(
@@ -156,7 +195,6 @@ fun PetDetailScreen(
             )
         }
     ) { padding ->
-        val successMessage by petViewModel.successMessage.collectAsState()
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f)))),
@@ -205,11 +243,11 @@ fun PetDetailScreen(
                             confirmValueChange = { value ->
                                 when (value) {
                                     SwipeToDismissBoxValue.StartToEnd -> { 
-                                        petViewModel.toggleTaskCompletion(task)
+                                        onToggleTask(task)
                                         false 
                                     }
                                     SwipeToDismissBoxValue.EndToStart -> { 
-                                        petViewModel.deleteTask(task.id)
+                                        onDeleteTask(task.id)
                                         true 
                                     }
                                     else -> false
@@ -227,7 +265,7 @@ fun PetDetailScreen(
                             content = { 
                                 EnhancedTaskItem(
                                     task = task, 
-                                    onToggle = { petViewModel.toggleTaskCompletion(task) }, 
+                                    onToggle = { onToggleTask(task) }, 
                                     onEditClick = { onEditTaskClick(task.id) }
                                 ) 
                             }
@@ -246,12 +284,12 @@ fun PetDetailScreen(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF2E7D32), // Same green as other pages
+                    color = Color(0xFF2E7D32),
                     contentColor = Color.White,
                     shadowElevation = 8.dp
                 ) {
                     Text(
-                        text = successMessage!!,
+                        text = successMessage,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
@@ -268,7 +306,7 @@ fun PetDetailScreen(
                     confirmButton = {
                         Button(
                             onClick = {
-                                petViewModel.deletePet(petId) { onBack() }
+                                onDeletePet()
                                 showDeleteDialog = false
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
@@ -363,7 +401,6 @@ fun InfoBadge(text: String, icon: ImageVector, color: Color = BluePrimary) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Unit) {
     PetCareCard {
@@ -430,5 +467,44 @@ fun EmptyRoutinePlaceholder() {
         Icon(Icons.AutoMirrored.Filled.EventNote, null, modifier = Modifier.size(40.dp), tint = Color.LightGray)
         Spacer(modifier = Modifier.height(16.dp))
         Text("No tasks added for this pet", color = Color.Gray, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PetDetailScreenPreview() {
+    val samplePet = Pet(
+        id = "1",
+        name = "Luna",
+        breed = "Golden Retriever",
+        age = 3,
+        weight = 25.0,
+        dietaryPreferences = "Grain-free kibble",
+        allergies = "None",
+        favoriteToys = "Tennis ball",
+        notes = "Luna is a very active dog."
+    )
+    val sampleTasks = listOf(
+        CareTask(id = "1", title = "Morning Walk", category = "Exercise", schedule = "07:00 AM", isCompleted = true),
+        CareTask(id = "2", title = "Breakfast", category = "Feeding", schedule = "08:00 AM", isCompleted = false, supplies = "Kibble"),
+        CareTask(id = "3", title = "Evening Walk", category = "Exercise", schedule = "06:00 PM", isCompleted = false)
+    )
+    PetCareApplicationTheme {
+        PetDetailScreenContent(
+            pet = samplePet,
+            tasks = sampleTasks,
+            totalSpent = 150.75,
+            successMessage = null,
+            onBack = {},
+            onAddTaskClick = {},
+            onEditPetClick = {},
+            onEditTaskClick = {},
+            onViewExpensesClick = {},
+            onViewMedicalClick = {},
+            onToggleTask = {},
+            onDeleteTask = {},
+            onClearRoutine = {},
+            onDeletePet = {}
+        )
     }
 }

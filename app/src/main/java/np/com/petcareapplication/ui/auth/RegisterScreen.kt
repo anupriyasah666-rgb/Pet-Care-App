@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +31,7 @@ import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BlueDark
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 
 @Composable
@@ -38,6 +41,42 @@ fun RegisterScreen(
     onRegisterSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val user by viewModel.user.collectAsState()
+    val registerError by viewModel.registerError.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
+    val isRegisterLoading by viewModel.isRegisterLoading.collectAsState()
+
+    LaunchedEffect(user) {
+        if (user != null) {
+            onRegisterSuccess()
+        }
+    }
+
+    LaunchedEffect(successMessage) {
+        successMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    RegisterScreenContent(
+        registerError = registerError,
+        successMessage = successMessage,
+        isRegisterLoading = isRegisterLoading,
+        onRegister = { name, email, password, phone -> 
+            viewModel.register(name, email, password, phone)
+        },
+        onNavigateToLogin = onNavigateToLogin
+    )
+}
+
+@Composable
+fun RegisterScreenContent(
+    registerError: String?,
+    successMessage: String?,
+    isRegisterLoading: Boolean,
+    onRegister: (String, String, String, String) -> Unit,
+    onNavigateToLogin: () -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -52,25 +91,6 @@ fun RegisterScreen(
 
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
-
-    val user by viewModel.user.collectAsState()
-    val registerError by viewModel.registerError.collectAsState()
-    val successMessage by viewModel.successMessage.collectAsState()
-    val isRegisterLoading by viewModel.isRegisterLoading.collectAsState()
-
-    // Navigate only when user state is set (happens after the 2-second delay in ViewModel)
-    LaunchedEffect(user) {
-        if (user != null) {
-            onRegisterSuccess()
-        }
-    }
-
-    // Optional: Keep Toast for additional confirmation
-    LaunchedEffect(successMessage) {
-        successMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-        }
-    }
 
     fun validate(): Boolean {
         var isValid = true
@@ -119,7 +139,11 @@ fun RegisterScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(brush = Brush.verticalGradient(colors = listOf(BluePrimary, Color.White)))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(BluePrimary, MaterialTheme.colorScheme.background)
+                )
+            )
     ) {
         Column(
             modifier = Modifier
@@ -136,7 +160,7 @@ fun RegisterScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 12.dp
             ) {
                 Column(
@@ -146,7 +170,6 @@ fun RegisterScreen(
                     PetCareTextField(
                         value = name,
                         onValueChange = { input ->
-                            // Only allow letters and spaces
                             if (input.all { it.isLetter() || it.isWhitespace() }) {
                                 name = input
                                 nameError = null
@@ -177,7 +200,6 @@ fun RegisterScreen(
                     PetCareTextField(
                         value = phone,
                         onValueChange = { input ->
-                            // Only allow digits and max 10 characters
                             val digitsOnly = input.filter { it.isDigit() }
                             if (digitsOnly.length <= 10) {
                                 phone = digitsOnly
@@ -202,7 +224,7 @@ fun RegisterScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
+                                Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     )
@@ -219,30 +241,28 @@ fun RegisterScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         trailingIcon = {
                             IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                                Icon(if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
+                                Icon(if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     )
 
-                    // Error Message
                     if (registerError != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.padding(top = 16.dp).fillMaxWidth()
                         ) {
-                            Text(text = registerError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp))
+                            Text(text = registerError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp))
                         }
                     }
 
-                    // Success Message (Visible for 2 seconds)
                     if (successMessage != null) {
                         Surface(
                             color = Color(0xFFE8F5E9),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.padding(top = 16.dp).fillMaxWidth()
                         ) {
-                            Text(text = successMessage!!, color = Color(0xFF2E7D32), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp))
+                            Text(text = successMessage, color = Color(0xFF2E7D32), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp))
                         }
                     }
 
@@ -251,15 +271,34 @@ fun RegisterScreen(
                     PetCareButton(
                         text = "Sign Up",
                         isLoading = isRegisterLoading,
-                        onClick = { if (validate()) viewModel.register(name.trim(), email, password, phone) }
+                        onClick = { if (validate()) onRegister(name.trim(), email, password, phone) }
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             TextButton(onClick = onNavigateToLogin) {
-                Text(text = "Already have an account? Login", color = BlueDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    text = "Already have an account? Login",
+                    color = if (MaterialTheme.colorScheme.primary == BluePrimary) BlueDark else MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun RegisterScreenPreview() {
+    PetCareApplicationTheme {
+        RegisterScreenContent(
+            registerError = null,
+            successMessage = null,
+            isRegisterLoading = false,
+            onRegister = { _, _, _, _ -> },
+            onNavigateToLogin = {}
+        )
     }
 }

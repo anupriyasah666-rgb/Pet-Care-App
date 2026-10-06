@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +41,7 @@ import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BlueDark
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 
@@ -50,16 +52,6 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    
-    var emailError by remember { mutableStateOf<String?>(null) }
-    var passwordError by remember { mutableStateOf<String?>(null) }
-    var passwordVisible by remember { mutableStateOf(false) }
-
-    var showResetDialog by remember { mutableStateOf(false) }
-    var resetEmail by remember { mutableStateOf("") }
-
     val user by viewModel.user.collectAsState()
     val loginError by viewModel.loginError.collectAsState()
     val resetError by viewModel.resetError.collectAsState()
@@ -78,26 +70,64 @@ fun LoginScreen(
             if (it.contains("reset link", ignoreCase = true)) {
                 Toast.makeText(context, it, Toast.LENGTH_LONG).show()
                 viewModel.clearSuccessMessage()
-                resetEmail = "" // Clear reset field on success
             }
         }
     }
 
-    // Clear login fields immediately and clear error after 2 seconds
     LaunchedEffect(loginError) {
         if (loginError != null) {
-            email = ""
-            password = ""
             delay(2000)
             viewModel.clearErrors()
         }
     }
 
-    // Clear reset error after 2 seconds
     LaunchedEffect(resetError) {
         if (resetError != null) {
             delay(2000)
             viewModel.clearErrors()
+        }
+    }
+
+    LoginScreenContent(
+        loginError = loginError,
+        resetError = resetError,
+        successMessage = successMessage,
+        isLoginLoading = isLoginLoading,
+        isResetLoading = isResetLoading,
+        onLogin = { email, password -> viewModel.login(email, password) },
+        onResetPassword = { viewModel.resetPassword(it) },
+        onNavigateToRegister = onNavigateToRegister,
+        onClearErrors = { viewModel.clearErrors() }
+    )
+}
+
+@Composable
+fun LoginScreenContent(
+    loginError: String?,
+    resetError: String?,
+    successMessage: String?,
+    isLoginLoading: Boolean,
+    isResetLoading: Boolean,
+    onLogin: (String, String) -> Unit,
+    onResetPassword: (String) -> Unit,
+    onNavigateToRegister: () -> Unit,
+    onClearErrors: () -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    var showResetDialog by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+
+    // Clear login fields if error occurs (as per original logic)
+    LaunchedEffect(loginError) {
+        if (loginError != null) {
+            email = ""
+            password = ""
         }
     }
 
@@ -127,7 +157,7 @@ fun LoginScreen(
             onDismissRequest = { 
                 if (!isResetLoading) {
                     showResetDialog = false 
-                    viewModel.clearErrors()
+                    onClearErrors()
                 }
             },
             title = { Text("Reset Password", fontWeight = FontWeight.Bold) },
@@ -160,7 +190,7 @@ fun LoginScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.resetPassword(resetEmail) },
+                    onClick = { onResetPassword(resetEmail) },
                     enabled = !isResetLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
                 ) {
@@ -174,18 +204,18 @@ fun LoginScreen(
             dismissButton = {
                 TextButton(onClick = { 
                     showResetDialog = false 
-                    viewModel.clearErrors()
+                    onClearErrors()
                 }, enabled = !isResetLoading) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             shape = RoundedCornerShape(24.dp),
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
         
         // Auto-close dialog on success
         LaunchedEffect(successMessage) {
-            if (successMessage != null && successMessage!!.contains("reset link")) {
+            if (successMessage != null && successMessage.contains("reset link")) {
                 showResetDialog = false
             }
         }
@@ -196,7 +226,7 @@ fun LoginScreen(
             .fillMaxSize()
             .background(
                 brush = Brush.verticalGradient(
-                    colors = listOf(BluePrimary, Color.White)
+                    colors = listOf(BluePrimary, MaterialTheme.colorScheme.background)
                 )
             )
     ) {
@@ -212,7 +242,7 @@ fun LoginScreen(
             Surface(
                 modifier = Modifier.size(160.dp),
                 shape = CircleShape,
-                color = Color.White.copy(alpha = 0.95f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                 shadowElevation = 24.dp,
                 border = BorderStroke(4.dp, Brush.linearGradient(listOf(BluePrimary, PinkHighlight)))
             ) {
@@ -266,7 +296,7 @@ fun LoginScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(32.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 16.dp
             ) {
                 Column(
@@ -303,7 +333,7 @@ fun LoginScreen(
                                 Icon(
                                     imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = null,
-                                    tint = Color.Gray
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -371,7 +401,7 @@ fun LoginScreen(
                         isLoading = isLoginLoading,
                         onClick = { 
                             if (validate()) {
-                                viewModel.login(email, password)
+                                onLogin(email, password)
                             }
                         }
                     )
@@ -383,11 +413,29 @@ fun LoginScreen(
             TextButton(onClick = onNavigateToRegister) {
                 Text(
                     text = "New here? Create an Account",
-                    color = BlueDark,
+                    color = if (MaterialTheme.colorScheme.primary == BluePrimary) BlueDark else MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 17.sp
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LoginScreenPreview() {
+    PetCareApplicationTheme {
+        LoginScreenContent(
+            loginError = null,
+            resetError = null,
+            successMessage = null,
+            isLoginLoading = false,
+            isResetLoading = false,
+            onLogin = { _, _ -> },
+            onResetPassword = { _ -> },
+            onNavigateToRegister = {},
+            onClearErrors = {}
+        )
     }
 }

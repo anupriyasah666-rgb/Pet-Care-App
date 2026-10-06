@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,11 +34,10 @@ import np.com.petcareapplication.model.Pet
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
-import np.com.petcareapplication.ui.theme.PinkHighlight
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPetScreen(
     onBack: () -> Unit,
@@ -46,6 +46,36 @@ fun AddPetScreen(
     petViewModel: PetViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val user by authViewModel.user.collectAsState()
+    val isUploading by petViewModel.isImageUploading.collectAsState()
+    val successMessage by petViewModel.successMessage.collectAsState()
+    val errorMessage by petViewModel.errorMessage.collectAsState()
+
+    AddPetScreenContent(
+        isUploading = isUploading,
+        successMessage = successMessage,
+        errorMessage = errorMessage,
+        onBack = onBack,
+        onAddPet = { pet, uri ->
+            val ownerId = user?.uid
+            if (ownerId != null) {
+                petViewModel.addPetWithImage(pet.copy(ownerId = ownerId), uri) { onPetAdded() }
+            } else {
+                Toast.makeText(context, "Please sign in to add a pet", Toast.LENGTH_SHORT).show()
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddPetScreenContent(
+    isUploading: Boolean,
+    successMessage: String?,
+    errorMessage: String?,
+    onBack: () -> Unit,
+    onAddPet: (Pet, Uri?) -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var breed by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
@@ -55,23 +85,26 @@ fun AddPetScreen(
     var allergies by remember { mutableStateOf("") }
     var toys by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
-    var imageUrl by remember { mutableStateOf("") } // Input for web link
+    var imageUrl by remember { mutableStateOf("") } 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    val user by authViewModel.user.collectAsState()
-    val isUploading by petViewModel.isImageUploading.collectAsState()
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var breedError by remember { mutableStateOf<String?>(null) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? -> 
         if (uri != null) {
             selectedImageUri = uri
-            imageUrl = "" // Clear text input if file picked
+            imageUrl = "" 
         }
     }
 
     fun validate(): Boolean {
-        return name.isNotBlank() && breed.isNotBlank()
+        var isValid = true
+        if (name.isBlank()) { nameError = "Required"; isValid = false } else nameError = null
+        if (breed.isBlank()) { breedError = "Required"; isValid = false } else breedError = null
+        return isValid
     }
 
     Scaffold(
@@ -82,10 +115,9 @@ fun AddPetScreen(
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(Color.White, BluePrimary.copy(alpha = 0.05f))))
-                    .padding(16.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -94,7 +126,7 @@ fun AddPetScreen(
                     modifier = Modifier.size(100.dp).clip(CircleShape).background(BluePrimary.copy(alpha = 0.1f)).clickable { imagePickerLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
-                    val displayImage = if (selectedImageUri != null) selectedImageUri else if (imageUrl.isNotEmpty()) imageUrl else null
+                    val displayImage = selectedImageUri ?: imageUrl.ifEmpty { null }
                     if (displayImage != null) {
                         AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
@@ -102,14 +134,14 @@ fun AddPetScreen(
                     }
                 }
 
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Photo Link (Optional)", fontWeight = FontWeight.Bold, color = BluePrimary, fontSize = 14.sp)
                         PetCareTextField(
                             value = imageUrl, 
                             onValueChange = { 
                                 imageUrl = it
-                                if (it.isNotEmpty()) selectedImageUri = null // Clear file if link entered
+                                if (it.isNotEmpty()) selectedImageUri = null 
                             }, 
                             label = "Image URL (e.g. Pinterest link)"
                         )
@@ -117,11 +149,11 @@ fun AddPetScreen(
                     }
                 }
 
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Details", fontWeight = FontWeight.Bold, color = BluePrimary)
-                        PetCareTextField(value = name, onValueChange = { name = it }, label = "Pet Name")
-                        PetCareTextField(value = breed, onValueChange = { breed = it }, label = "Breed")
+                        PetCareTextField(value = name, onValueChange = { name = it }, label = "Pet Name", error = nameError)
+                        PetCareTextField(value = breed, onValueChange = { breed = it }, label = "Breed", error = breedError)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PetCareTextField(value = age, onValueChange = { age = it }, label = "Age (years)", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                             PetCareTextField(value = weight, onValueChange = { weight = it }, label = "Weight (kg)", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
@@ -129,7 +161,7 @@ fun AddPetScreen(
                     }
                 }
 
-                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = Color.White) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Health Info", fontWeight = FontWeight.Bold, color = BluePrimary)
                         PetCareTextField(value = dietary, onValueChange = { dietary = it }, label = "Dietary Preferences")
@@ -142,7 +174,11 @@ fun AddPetScreen(
                             onValueChange = { notes = it },
                             label = { Text("General Notes") },
                             modifier = Modifier.fillMaxWidth().height(100.dp),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BluePrimary,
+                                unfocusedBorderColor = Color.LightGray
+                            )
                         )
                     }
                 }
@@ -153,7 +189,6 @@ fun AddPetScreen(
                     onClick = {
                         if (validate()) {
                             val newPet = Pet(
-                                ownerId = user?.uid ?: "",
                                 name = name, breed = breed,
                                 age = age.toIntOrNull() ?: 0,
                                 weight = weight.toDoubleOrNull() ?: 0.0,
@@ -162,17 +197,48 @@ fun AddPetScreen(
                                 allergies = allergies,
                                 favoriteToys = toys,
                                 notes = notes,
-                                imageUrl = imageUrl // Uses the URL if no file is uploaded
+                                imageUrl = imageUrl 
                             )
-                            // If user provided a link and no file, pass the link as Uri. Or handle in ViewModel.
-                            val finalUri = if (selectedImageUri != null) selectedImageUri else if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
-                            petViewModel.addPetWithImage(newPet, finalUri) { onPetAdded() }
-                        } else {
-                            Toast.makeText(context, "Name and Breed are required", Toast.LENGTH_SHORT).show()
+                            val finalUri = selectedImageUri ?: if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
+                            onAddPet(newPet, finalUri)
                         }
                     }
                 )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // FEEDBACK OVERLAYS
+            if (successMessage != null) {
+                Surface(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp),
+                    shape = RoundedCornerShape(24.dp), color = Color(0xFF2E7D32), contentColor = Color.White, shadowElevation = 8.dp
+                ) {
+                    Text(text = successMessage, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (errorMessage != null) {
+                Surface(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp),
+                    shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError, shadowElevation = 8.dp
+                ) {
+                    Text(text = errorMessage, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AddPetScreenPreview() {
+    PetCareApplicationTheme {
+        AddPetScreenContent(
+            isUploading = false,
+            successMessage = null,
+            errorMessage = null,
+            onBack = {},
+            onAddPet = { _, _ -> }
+        )
     }
 }

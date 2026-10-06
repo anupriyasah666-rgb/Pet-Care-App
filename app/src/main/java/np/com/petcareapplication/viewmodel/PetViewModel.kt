@@ -108,8 +108,15 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
         viewModelScope.launch {
             _isImageUploading.value = true
             try {
-                var url = ""
-                if (imageUri != null) url = repository.uploadPetImage(imageUri)
+                var url = task.imageUrl
+                if (imageUri != null) {
+                    val uriString = imageUri.toString()
+                    if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
+                        url = repository.uploadPetImage(imageUri)
+                    } else if (uriString.startsWith("http")) {
+                        url = uriString
+                    }
+                }
                 repository.addTask(task.copy(imageUrl = url))
                 _isImageUploading.value = false
                 onComplete()
@@ -117,6 +124,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
             } catch (e: Exception) {
                 _isImageUploading.value = false
                 _errorMessage.value = "Failed to add task."
+                Log.e("PetViewModel", "Error adding task", e)
             }
         }
     }
@@ -162,14 +170,22 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
         viewModelScope.launch {
             _isImageUploading.value = true
             try {
-                var url = ""
-                if (imageUri != null) url = repository.uploadPetImage(imageUri)
+                var url = pet.imageUrl
+                if (imageUri != null) {
+                    val uriString = imageUri.toString()
+                    if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
+                        url = repository.uploadPetImage(imageUri)
+                    } else if (uriString.startsWith("http")) {
+                        url = uriString
+                    }
+                }
                 repository.addPet(pet.copy(imageUrl = url))
                 _isImageUploading.value = false
                 onComplete()
                 showFeedback("Pet added")
             } catch (e: Exception) { 
                 _isImageUploading.value = false
+                _errorMessage.value = "Failed to add pet."
                 Log.e("PetViewModel", "Error adding pet", e)
             }
         }

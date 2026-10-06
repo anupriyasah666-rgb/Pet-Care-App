@@ -21,35 +21,59 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import np.com.petcareapplication.model.User
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
-    val context = LocalContext.current
     val userData by viewModel.userData.collectAsState()
     val isProfileLoading by viewModel.isProfileLoading.collectAsState()
     val profileError by viewModel.profileError.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.loadUserData()
+    }
+
+    ProfileScreenContent(
+        userData = userData,
+        isProfileLoading = isProfileLoading,
+        profileError = profileError,
+        successMessage = successMessage,
+        onBack = onBack,
+        onUpdateProfile = { name, phone -> viewModel.updateProfile(name, phone, null) },
+        onClearErrors = { viewModel.clearErrors() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileScreenContent(
+    userData: User?,
+    isProfileLoading: Boolean,
+    profileError: String?,
+    successMessage: String?,
+    onBack: () -> Unit,
+    onUpdateProfile: (String, String) -> Unit,
+    onClearErrors: () -> Unit
+) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        viewModel.loadUserData()
-    }
 
     LaunchedEffect(userData) {
         userData?.let {
@@ -62,7 +86,6 @@ fun ProfileScreen(
         var isValid = true
         val trimmedName = name.trim()
 
-        // Name validation: Must be letters only, at least two names
         if (trimmedName.isEmpty()) {
             nameError = "Full name is required"
             isValid = false
@@ -76,7 +99,6 @@ fun ProfileScreen(
             nameError = null
         }
 
-        // Phone validation: Must be exactly 10 digits
         if (phone.length != 10) {
             phoneError = "Phone number must be exactly 10 digits"
             isValid = false
@@ -179,7 +201,7 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = profileError!!,
+                            text = profileError,
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
@@ -195,7 +217,7 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = successMessage!!,
+                            text = successMessage,
                             color = Color(0xFF2E7D32),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
@@ -212,7 +234,7 @@ fun ProfileScreen(
                     isLoading = isProfileLoading,
                     onClick = {
                         if (validate()) {
-                            viewModel.updateProfile(name.trim(), phone, null)
+                            onUpdateProfile(name.trim(), phone)
                         } else {
                             Toast.makeText(context, "Please fix input errors", Toast.LENGTH_SHORT).show()
                         }
@@ -220,5 +242,27 @@ fun ProfileScreen(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ProfileScreenPreview() {
+    val sampleUser = User(
+        uid = "1",
+        name = "Emily Watson",
+        email = "emily@example.com",
+        phoneNumber = "9876543210"
+    )
+    PetCareApplicationTheme {
+        ProfileScreenContent(
+            userData = sampleUser,
+            isProfileLoading = false,
+            profileError = null,
+            successMessage = null,
+            onBack = {},
+            onUpdateProfile = { _, _ -> },
+            onClearErrors = {}
+        )
     }
 }

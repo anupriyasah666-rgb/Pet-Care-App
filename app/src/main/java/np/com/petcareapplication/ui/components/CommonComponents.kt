@@ -23,8 +23,8 @@ fun PetCareButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = BluePrimary,
-    contentColor: Color = Color.White,
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
     enabled: Boolean = true,
     isLoading: Boolean = false
 ) {
@@ -88,11 +88,12 @@ fun PetCareTextField(
                                     KeyboardCapitalization.None else keyboardOptions.capitalization
             ),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = BluePrimary,
-                unfocusedBorderColor = Color.LightGray,
-                focusedLabelColor = BluePrimary,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
                 errorBorderColor = MaterialTheme.colorScheme.error,
-                errorLabelColor = MaterialTheme.colorScheme.error
+                errorLabelColor = MaterialTheme.colorScheme.error,
+                cursorColor = MaterialTheme.colorScheme.primary
             ),
             singleLine = true
         )
@@ -113,12 +114,13 @@ fun PetCareTextField(
 @Composable
 fun PetCareCard(
     modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
     content: @Composable ColumnScope.() -> Unit
 ) {
     ElevatedCard(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp),
         content = content
     )

@@ -17,18 +17,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import np.com.petcareapplication.model.Expense
 import np.com.petcareapplication.ui.components.PetCareCard
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.ExpenseViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseScreen(
     petId: String,
@@ -43,6 +44,24 @@ fun ExpenseScreen(
         viewModel.loadExpenses(petId)
     }
 
+    ExpenseScreenContent(
+        expenses = expenses,
+        totalSpent = totalSpent,
+        onBack = onBack,
+        onAddExpenseClick = onAddExpenseClick,
+        onDeleteExpense = { viewModel.deleteExpense(it) }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExpenseScreenContent(
+    expenses: List<Expense>,
+    totalSpent: Double,
+    onBack: () -> Unit,
+    onAddExpenseClick: () -> Unit,
+    onDeleteExpense: (String) -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -135,7 +154,7 @@ fun ExpenseScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(expenses) { expense ->
-                        ExpenseItem(expense = expense, onDelete = { viewModel.deleteExpense(expense.id) })
+                        ExpenseItem(expense = expense, onDelete = { onDeleteExpense(expense.id) })
                     }
                     item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
@@ -230,5 +249,24 @@ fun EmptyExpensePlaceholder() {
         Spacer(modifier = Modifier.height(16.dp))
         Text("No expenses yet", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Text("Keep track of your pet spending here", color = Color.LightGray, fontSize = 14.sp)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ExpenseScreenPreview() {
+    val sampleExpenses = listOf(
+        Expense(id = "1", category = "Food", amount = 45.50, description = "Premium Kibble 10kg", date = System.currentTimeMillis()),
+        Expense(id = "2", category = "Medical", amount = 120.00, description = "Annual Vaccination", date = System.currentTimeMillis() - 86400000 * 2),
+        Expense(id = "3", category = "Toys", amount = 15.99, description = "Chew Toy", date = System.currentTimeMillis() - 86400000 * 5)
+    )
+    PetCareApplicationTheme {
+        ExpenseScreenContent(
+            expenses = sampleExpenses,
+            totalSpent = 181.49,
+            onBack = {},
+            onAddExpenseClick = {},
+            onDeleteExpense = {}
+        )
     }
 }

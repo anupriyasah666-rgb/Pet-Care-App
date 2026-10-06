@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,15 +25,40 @@ import np.com.petcareapplication.model.Expense
 import np.com.petcareapplication.ui.components.PetCareButton
 import np.com.petcareapplication.ui.components.PetCareTextField
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.ExpenseViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
     petId: String,
     onBack: () -> Unit,
     onExpenseAdded: () -> Unit,
     viewModel: ExpenseViewModel = viewModel()
+) {
+    val successMessage by viewModel.successMessage.collectAsState()
+
+    AddExpenseScreenContent(
+        successMessage = successMessage,
+        onBack = onBack,
+        onAddExpense = { category, amount, description ->
+            val newExpense = Expense(
+                petId = petId,
+                category = category,
+                amount = amount,
+                description = description,
+                date = System.currentTimeMillis()
+            )
+            viewModel.addExpense(newExpense, onExpenseAdded)
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddExpenseScreenContent(
+    successMessage: String?,
+    onBack: () -> Unit,
+    onAddExpense: (String, Double, String) -> Unit
 ) {
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -43,8 +69,6 @@ fun AddExpenseScreen(
     
     val categories = listOf("Food", "Grooming", "Medical", "Toys", "Medication", "Other")
     var categoryExpanded by remember { mutableStateOf(false) }
-
-    val successMessage by viewModel.successMessage.collectAsState()
 
     fun validate(): Boolean {
         var isValid = true
@@ -189,14 +213,7 @@ fun AddExpenseScreen(
                     text = "Save Record",
                     onClick = {
                         if (validate()) {
-                            val newExpense = Expense(
-                                petId = petId,
-                                category = category,
-                                amount = amount.toDouble(),
-                                description = description,
-                                date = System.currentTimeMillis()
-                            )
-                            viewModel.addExpense(newExpense, onExpenseAdded)
+                            onAddExpense(category, amount.toDouble(), description)
                         }
                     }
                 )
@@ -209,12 +226,12 @@ fun AddExpenseScreen(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF2E7D32), // Dark Green Background
+                    color = Color(0xFF2E7D32),
                     contentColor = Color.White,
                     shadowElevation = 8.dp
                 ) {
                     Text(
-                        text = successMessage!!,
+                        text = successMessage,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
@@ -222,5 +239,17 @@ fun AddExpenseScreen(
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AddExpenseScreenPreview() {
+    PetCareApplicationTheme {
+        AddExpenseScreenContent(
+            successMessage = null,
+            onBack = {},
+            onAddExpense = { _, _, _ -> }
+        )
     }
 }

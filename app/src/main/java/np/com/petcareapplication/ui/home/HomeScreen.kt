@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -36,6 +37,7 @@ import np.com.petcareapplication.model.Pet
 import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.ui.components.PetCareCard
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
@@ -61,6 +63,7 @@ fun HomeScreen(
     val user by authViewModel.user.collectAsState()
     val pets by petViewModel.pets.collectAsState()
     val allTasks by petViewModel.allTasks.collectAsState()
+    val successMessage by petViewModel.successMessage.collectAsState()
 
     // --- GESTURE CONTROL: Shake to Reset ALL tasks across all pets ---
     DisposableEffect(Unit) {
@@ -93,13 +96,39 @@ fun HomeScreen(
         }
     }
 
+    HomeScreenContent(
+        pets = pets,
+        allTasks = allTasks,
+        successMessage = successMessage,
+        onPetClick = onPetClick,
+        onAddPetClick = onAddPetClick,
+        onEditTaskClick = onEditTaskClick,
+        onProfileClick = onProfileClick,
+        onLogout = onLogout,
+        onToggleTask = { petViewModel.toggleTaskCompletion(it) }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreenContent(
+    pets: List<Pet>,
+    allTasks: List<CareTask>,
+    successMessage: String?,
+    onPetClick: (String) -> Unit,
+    onAddPetClick: () -> Unit,
+    onEditTaskClick: (String) -> Unit,
+    onProfileClick: () -> Unit,
+    onLogout: () -> Unit,
+    onToggleTask: (CareTask) -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(text = "Happy pets", fontWeight = FontWeight.Black, fontSize = 28.sp, fontFamily = FontFamily.Cursive, color = BluePrimary)
-                        Text(text = "Dashboard", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text(text = "Happy pets", fontWeight = FontWeight.Black, fontSize = 28.sp, fontFamily = FontFamily.Cursive, color = MaterialTheme.colorScheme.primary)
+                        Text(text = "Dashboard", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 actions = {
@@ -113,8 +142,8 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(Icons.Default.AccountCircle, null, tint = BluePrimary, modifier = Modifier.size(24.dp))
-                        Text("Profile", color = BluePrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                        Icon(Icons.Default.AccountCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                        Text("Profile", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                     }
                     
                     // Logout - Optimized layout to avoid cropping
@@ -127,22 +156,30 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, null, tint = PinkHighlight, modifier = Modifier.size(24.dp))
-                        Text("Logout", color = PinkHighlight, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                        Icon(Icons.AutoMirrored.Filled.Logout, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(24.dp))
+                        Text("Logout", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = onAddPetClick, containerColor = BluePrimary, contentColor = Color.White, shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add Pet") }
+                onClick = onAddPetClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp),
+                icon = { Icon(Icons.Default.Add, null) },
+                text = { Text("Add Pet") }
             )
         }
     ) { padding ->
-        val successMessage by petViewModel.successMessage.collectAsState()
-        
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 
                 // Dynamic Banner showing tasks left
@@ -153,26 +190,28 @@ fun HomeScreen(
                     ) 
                 }
 
-                item { Text(text = "My Pets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = BluePrimary) }
+                item { Text(text = "My Pets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
                 if (pets.isEmpty()) { item { EmptyHomeState() } }
                 else {
-                    items(pets, key = { it.id }) { pet -> PetSummaryItem(pet = pet, onClick = { onPetClick(pet.id) }) }
+                    // Fix: Use a prefixed key to avoid collisions between Pets and Tasks in the same LazyColumn
+                    items(pets, key = { "pet_${it.id}" }) { pet -> PetSummaryItem(pet = pet, onClick = { onPetClick(pet.id) }) }
                 }
 
                 // Show both pending and completed routine tasks as per request to see completion state on Home
                 if (allTasks.isNotEmpty()) {
                     item { Spacer(modifier = Modifier.height(8.dp)) }
-                    item { Text(text = "Today's Routine", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = BluePrimary) }
+                    item { Text(text = "Today's Routine", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
                     
                     // Sorting to keep pending tasks at top
                     val sortedTasks = allTasks.sortedBy { it.isCompleted }
                     
-                    items(sortedTasks, key = { it.id }) { task ->
+                    // Fix: Use a prefixed key to avoid collisions between Pets and Tasks in the same LazyColumn
+                    items(sortedTasks, key = { "task_${it.id}" }) { task ->
                         val petName = pets.find { it.id == task.petId }?.name ?: "Pet"
                         HomeTaskItem(
                             task = task, 
                             petName = petName, 
-                            onComplete = { petViewModel.toggleTaskCompletion(task) },
+                            onComplete = { onToggleTask(task) },
                             onEdit = { onEditTaskClick(task.id) }
                         )
                     }
@@ -186,7 +225,7 @@ fun HomeScreen(
                 val bgColor = when (successMessage) {
                     "Pet added", "Marked as completed", "Marked as undone", "Today's checklist reset!", "Task added", "Profile updated successfully", "Task updated successfully", "Care routine cleared successfully", "Health record saved" -> Color(0xFF2E7D32) // Green
                     "Pet deleted" -> PinkHighlight
-                    else -> Color.Black.copy(alpha = 0.8f)
+                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 }
                 Surface(
                     modifier = Modifier
@@ -198,7 +237,7 @@ fun HomeScreen(
                     shadowElevation = 8.dp
                 ) {
                     Text(
-                        text = successMessage!!, 
+                        text = successMessage, 
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), 
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
@@ -211,21 +250,24 @@ fun HomeScreen(
 
 @Composable
 fun ConsolidatedStatusSection(pendingTasks: Int, totalTasks: Int) {
-    PetCareCard(modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.fillMaxWidth().background(brush = Brush.horizontalGradient(colors = listOf(BluePrimary, BluePrimary.copy(alpha = 0.8f)))).padding(20.dp)) {
+    PetCareCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.primary
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text(text = "Today's Checklist", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Today's Checklist", color = MaterialTheme.colorScheme.onPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text(
                         text = when {
                             totalTasks == 0 -> "No tasks scheduled."
                             pendingTasks == 0 -> "All tasks completed! Good job."
                             else -> "$pendingTasks items left to complete."
                         },
-                        color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f), fontSize = 14.sp
                     )
                 }
-                Icon(Icons.Default.TaskAlt, null, tint = Color.White, modifier = Modifier.size(44.dp))
+                Icon(Icons.Default.TaskAlt, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(44.dp))
             }
         }
     }
@@ -240,10 +282,10 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (task.isCompleted) PinkHighlight else Color.White) // Changed Transparent to White to ensure it's "filled"
+                    .background(if (task.isCompleted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surface)
                     .border(
                         width = 2.dp,
-                        color = if (task.isCompleted) PinkHighlight else Color.LightGray.copy(alpha = 0.5f),
+                        color = if (task.isCompleted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                         shape = CircleShape
                     )
                     .clickable { onComplete() },
@@ -253,7 +295,7 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSecondary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -262,23 +304,23 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = petName, color = PinkHighlight, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(text = " • ", color = Color.Gray)
+                    Text(text = petName, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(text = " • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         text = task.title, 
                         fontWeight = FontWeight.Bold, 
                         fontSize = 15.sp,
-                        color = if (task.isCompleted) Color.Gray else Color.Black
+                        color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Text(text = task.schedule, fontSize = 12.sp, color = Color.Gray)
+                Text(text = task.schedule, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             
             IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit Task",
-                    tint = BluePrimary.copy(alpha = 0.7f),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -290,19 +332,19 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit
 fun PetSummaryItem(pet: Pet, onClick: () -> Unit) {
     PetCareCard(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = BluePrimary.copy(alpha = 0.1f)) {
+            Surface(modifier = Modifier.size(60.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
                 if (pet.imageUrl.isNotEmpty()) {
                     AsyncImage(model = pet.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                 } else {
-                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Pets, null, tint = BluePrimary.copy(alpha = 0.5f)) }
+                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Pets, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) }
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = pet.name, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = BluePrimary)
-                Text(text = pet.breed, color = Color.Gray, fontSize = 14.sp)
+                Text(text = pet.name, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                Text(text = pet.breed, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
+            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
         }
     }
 }
@@ -310,7 +352,33 @@ fun PetSummaryItem(pet: Pet, onClick: () -> Unit) {
 @Composable
 fun EmptyHomeState() {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.Default.Pets, null, modifier = Modifier.size(80.dp), tint = Color.LightGray.copy(alpha = 0.3f))
-        Text(text = "Your pet list is empty", color = Color.Gray)
+        Icon(Icons.Default.Pets, null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+        Text(text = "Your pet list is empty", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun HomeScreenPreview() {
+    val samplePets = listOf(
+        Pet(id = "1", name = "Luna", breed = "Golden Retriever"),
+        Pet(id = "2", name = "Milo", breed = "Calico Cat")
+    )
+    val sampleTasks = listOf(
+        CareTask(id = "1", petId = "1", title = "Walk Luna", schedule = "07:00 AM", isCompleted = true),
+        CareTask(id = "2", petId = "2", title = "Feed Milo", schedule = "08:00 AM", isCompleted = false)
+    )
+    PetCareApplicationTheme {
+        HomeScreenContent(
+            pets = samplePets,
+            allTasks = sampleTasks,
+            successMessage = null,
+            onPetClick = {},
+            onAddPetClick = {},
+            onEditTaskClick = {},
+            onProfileClick = {},
+            onLogout = {},
+            onToggleTask = {}
+        )
     }
 }

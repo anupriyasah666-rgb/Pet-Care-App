@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,6 +25,7 @@ import np.com.petcareapplication.model.CareTask
 import np.com.petcareapplication.model.MedicalRecord
 import np.com.petcareapplication.ui.components.PetCareCard
 import np.com.petcareapplication.ui.theme.BluePrimary
+import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.MedicalViewModel
@@ -47,9 +49,46 @@ fun MedicalRecordScreen(
     val records by medicalViewModel.records.collectAsState()
     val successMessage by medicalViewModel.successMessage.collectAsState()
     val user by authViewModel.user.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(petId) { medicalViewModel.loadRecords(petId) }
+
+    MedicalRecordScreenContent(
+        records = records,
+        successMessage = successMessage,
+        onBack = onBack,
+        onDeleteRecord = { medicalViewModel.deleteRecord(it) },
+        onAddRecord = { type, notes, timestamp, addToChecklist ->
+            medicalViewModel.addRecord(MedicalRecord(petId = petId, type = type, notes = notes, date = timestamp))
+            if (addToChecklist) {
+                val df = SimpleDateFormat("MMM dd", Locale.getDefault())
+                petViewModel.addTask(
+                    CareTask(
+                        petId = petId,
+                        ownerId = user?.uid ?: "",
+                        title = "$type Appointment",
+                        category = "Healthcare",
+                        schedule = df.format(Date(timestamp)),
+                        notes = notes,
+                        type = "ONE-TIME",
+                        dueDate = timestamp
+                    ),
+                    onComplete = { /* Task added successfully */ }
+                )
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MedicalRecordScreenContent(
+    records: List<MedicalRecord>,
+    successMessage: String?,
+    onBack: () -> Unit,
+    onDeleteRecord: (String) -> Unit,
+    onAddRecord: (String, String, Long, Boolean) -> Unit
+) {
+    var showAddDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -73,7 +112,7 @@ fun MedicalRecordScreen(
             else {
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(records) { record ->
-                        MedicalRecordItem(record = record, onDelete = { medicalViewModel.deleteRecord(record.id) })
+                        MedicalRecordItem(record = record, onDelete = { onDeleteRecord(record.id) })
                     }
                 }
             }
@@ -91,7 +130,7 @@ fun MedicalRecordScreen(
                     shadowElevation = 8.dp
                 ) {
                     Text(
-                        text = successMessage!!,
+                        text = successMessage,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
@@ -104,26 +143,7 @@ fun MedicalRecordScreen(
                 AddMedicalRecordDialog(
                     onDismiss = { showAddDialog = false },
                     onConfirm = { type, notes, timestamp, addToChecklist ->
-                        // 1. Log the record
-                        medicalViewModel.addRecord(MedicalRecord(petId = petId, type = type, notes = notes, date = timestamp))
-                        
-                        // 2. SCENARIO SYNC: If Luna's vaccination is due, add it to the routine checklist
-                        if (addToChecklist) {
-                            val df = SimpleDateFormat("MMM dd", Locale.getDefault())
-                            petViewModel.addTask(
-                                CareTask(
-                                    petId = petId,
-                                    ownerId = user?.uid ?: "",
-                                    title = "$type Appointment",
-                                    category = "Healthcare",
-                                    schedule = df.format(Date(timestamp)),
-                                    notes = notes,
-                                    type = "ONE-TIME",
-                                    dueDate = timestamp
-                                ),
-                                onComplete = { /* Task added successfully */ }
-                            )
-                        }
+                        onAddRecord(type, notes, timestamp, addToChecklist)
                         showAddDialog = false
                     }
                 )
@@ -204,5 +224,24 @@ fun EmptyMedicalPlaceholder() {
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Icon(Icons.Default.HealthAndSafety, null, modifier = Modifier.size(80.dp), tint = Color.LightGray.copy(alpha = 0.5f))
         Text("No health records logged", color = Color.Gray)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun MedicalRecordScreenPreview() {
+    val sampleRecords = listOf(
+        MedicalRecord(id = "1", type = "Vaccination", notes = "Rabies vaccine booster", date = System.currentTimeMillis()),
+        MedicalRecord(id = "2", type = "Checkup", notes = "Annual physical exam", date = System.currentTimeMillis() - 86400000 * 30),
+        MedicalRecord(id = "3", type = "Medication", notes = "Heartworm prevention", date = System.currentTimeMillis() - 86400000 * 5)
+    )
+    PetCareApplicationTheme {
+        MedicalRecordScreenContent(
+            records = sampleRecords,
+            successMessage = null,
+            onBack = {},
+            onDeleteRecord = {},
+            onAddRecord = { _, _, _, _ -> }
+        )
     }
 }
