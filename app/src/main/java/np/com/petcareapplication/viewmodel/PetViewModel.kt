@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,27 +38,61 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    // Each live Firestore listener is kept as a Job so it can be cancelled before a new one
+    // starts (and when the user logs out). Without this, every screen visit added another
+    // listener, and old listeners failed after logout, showing "Error loading pets."
+    private var petsJob: Job? = null
+    private var tasksJob: Job? = null
+    private var allTasksJob: Job? = null
+
     fun loadPets(ownerId: String) {
-        viewModelScope.launch {
+        petsJob?.cancel()
+        petsJob = viewModelScope.launch {
             repository.getPets(ownerId)
-                .catch { e -> _errorMessage.value = "Error loading pets." }
+                // Background loading problems are logged, not shown as a banner on every screen
+                .catch { e -> Log.e("PetViewModel", "Error loading pets", e) }
                 .collectLatest { _pets.value = it }
         }
     }
 
     fun loadTasks(petId: String) {
-        viewModelScope.launch {
+        tasksJob?.cancel()
+        tasksJob = viewModelScope.launch {
             repository.getTasks(petId)
-                .catch { e -> _errorMessage.value = "Failed to load tasks." }
+                .catch { e -> Log.e("PetViewModel", "Error loading tasks", e) }
                 .collectLatest { _tasks.value = it }
         }
     }
 
     fun loadAllTasks(ownerId: String) {
-        viewModelScope.launch {
+        allTasksJob?.cancel()
+        allTasksJob = viewModelScope.launch {
             repository.getAllTasks(ownerId)
                 .catch { e -> Log.e("PetViewModel", "Error loading consolidated tasks", e) }
                 .collectLatest { _allTasks.value = it }
+        }
+    }
+
+    /**
+     * Called on logout: stops all live listeners and clears the previous user's data,
+     * so nothing from their account is shown to the next person who signs in.
+     */
+    fun clearSession() {
+        petsJob?.cancel(); tasksJob?.cancel(); allTasksJob?.cancel()
+        petsJob = null; tasksJob = null; allTasksJob = null
+        _pets.value = emptyList()
+        _tasks.value = emptyList()
+        _allTasks.value = emptyList()
+        _successMessage.value = null
+        _errorMessage.value = null
+    }
+
+    /** Shows an error banner for 3 seconds, then hides it so it never gets "stuck". */
+    private fun showError(message: String) {
+        viewModelScope.launch {
+            _errorMessage.value = message
+            delay(3000)
+            _errorMessage.value = null
         }
     }
 
@@ -78,7 +113,23 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                     }
                 }
                 showFeedback("Today's checklist reset!")
-            } catch (e: Exception) { _errorMessage.value = "Reset failed." }
+            } catch (e: Exception) { showError("Reset failed.") }
+        }
+    }
+
+    /**
+     * DESIRABLE FEATURE (gesture): called when the phone is shaken on the Home dashboard.
+     * Un-ticks every completed task across ALL of the owner's pets, using the live
+     * consolidated list (_allTasks) rather than a single pet's tasks.
+     */
+    fun resetAllTasks() {
+        viewModelScope.launch {
+            try {
+                _allTasks.value.filter { it.isCompleted }.forEach { task ->
+                    repository.updateTask(task.copy(isCompleted = false))
+                }
+                showFeedback("Today's checklist reset!")
+            } catch (e: Exception) { showError("Reset failed.") }
         }
     }
 
@@ -87,7 +138,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
             try {
                 repository.deleteRoutine(petId)
                 showFeedback("Care routine cleared successfully")
-            } catch (e: Exception) { _errorMessage.value = "Failed to clear routine." }
+            } catch (e: Exception) { showError("Failed to clear routine.") }
         }
     }
 
@@ -98,8 +149,8 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 showFeedback("Task added")
                 delay(1000)
                 onComplete()
-            } catch (e: Exception) { 
-                _errorMessage.value = "Failed to add task."
+            } catch (e: Exception) {
+                showError("Failed to add task.")
             }
         }
     }
@@ -123,7 +174,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 showFeedback("Task added")
             } catch (e: Exception) {
                 _isImageUploading.value = false
-                _errorMessage.value = "Failed to add task."
+                showError("Failed to add task.")
                 Log.e("PetViewModel", "Error adding task", e)
             }
         }
@@ -137,7 +188,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 delay(1000)
                 onComplete()
             } catch (e: Exception) {
-                _errorMessage.value = "Failed to update task."
+                showError("Failed to update task.")
             }
         }
     }
@@ -161,7 +212,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 showFeedback("Task updated successfully")
             } catch (e: Exception) {
                 _isImageUploading.value = false
-                _errorMessage.value = "Failed to update task."
+                showError("Failed to update task.")
             }
         }
     }
@@ -183,9 +234,9 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 _isImageUploading.value = false
                 onComplete()
                 showFeedback("Pet added")
-            } catch (e: Exception) { 
+            } catch (e: Exception) {
                 _isImageUploading.value = false
-                _errorMessage.value = "Failed to add pet."
+                showError("Failed to add pet.")
                 Log.e("PetViewModel", "Error adding pet", e)
             }
         }
@@ -208,9 +259,9 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 _isImageUploading.value = false
                 onComplete()
                 showFeedback("Profile updated successfully")
-            } catch (e: Exception) { 
+            } catch (e: Exception) {
                 _isImageUploading.value = false
-                _errorMessage.value = "Failed to update profile."
+                showError("Failed to update profile.")
                 Log.e("PetViewModel", "Error updating pet image/data", e)
             }
         }
@@ -219,13 +270,13 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
     fun deletePet(petId: String, onComplete: () -> Unit) {
         onComplete()
         _successMessage.value = "Pet deleted"
-        viewModelScope.launch { 
+        viewModelScope.launch {
             try {
                 repository.deletePet(petId)
                 repository.cleanupPetData(petId)
                 delay(2000)
                 _successMessage.value = null
-            } catch (e: Exception) { 
+            } catch (e: Exception) {
                 Log.e("PetViewModel", "Failed to delete pet in background", e)
             }
         }
@@ -236,7 +287,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
             try {
                 repository.deleteTask(taskId)
                 showFeedback("Task is deleted")
-            } catch (e: Exception) { _errorMessage.value = "Delete failed." }
+            } catch (e: Exception) { showError("Delete failed.") }
         }
     }
 
@@ -246,7 +297,7 @@ class PetViewModel(private val repository: PetRepository = PetRepository()) : Vi
                 val newStatus = !task.isCompleted
                 repository.updateTask(task.copy(isCompleted = newStatus))
                 showFeedback(if (newStatus) "Marked as completed" else "Marked as undone")
-            } catch (e: Exception) { _errorMessage.value = "Update failed." }
+            } catch (e: Exception) { showError("Update failed.") }
         }
     }
 

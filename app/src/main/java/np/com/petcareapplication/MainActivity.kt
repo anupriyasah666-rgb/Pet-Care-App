@@ -98,6 +98,7 @@ fun PetCareApp() {
                     navController.navigate(Screen.Profile.route)
                 },
                 onLogout = {
+                    petViewModel.clearSession()   // stop listeners + clear previous user's data
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }

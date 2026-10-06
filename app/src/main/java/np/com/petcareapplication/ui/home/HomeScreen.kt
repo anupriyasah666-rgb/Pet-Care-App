@@ -72,16 +72,21 @@ fun HomeScreen(
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val shakeListener = object : SensorEventListener {
-            private var lastAcceleration = 0f
-            private var currentAcceleration = 0f
+            private var lastAcceleration = SensorManager.GRAVITY_EARTH
+            private var currentAcceleration = SensorManager.GRAVITY_EARTH
+            private var lastShakeTime = 0L
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event != null) {
                     val x = event.values[0]; val y = event.values[1]; val z = event.values[2]
                     lastAcceleration = currentAcceleration
                     currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
-                    if (currentAcceleration - lastAcceleration > 13f) {
-                        // Reset every pet's checklist at once from the Home dashboard
-                        pets.forEach { pet -> petViewModel.resetTasks(pet.id) }
+                    val now = System.currentTimeMillis()
+                    // A sudden jump in acceleration = a shake. The 1.5 s cooldown stops one
+                    // shake (which produces many sensor readings) from resetting several times.
+                    if (currentAcceleration - lastAcceleration > 13f && now - lastShakeTime > 1500) {
+                        lastShakeTime = now
+                        // Uses the ViewModel's live list of all tasks, so it is never out of date
+                        petViewModel.resetAllTasks()
                     }
                 }
             }

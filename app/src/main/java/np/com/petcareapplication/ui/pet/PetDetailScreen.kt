@@ -83,14 +83,20 @@ fun PetDetailScreen(
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val shakeListener = object : SensorEventListener {
-            private var lastAcceleration = 0f
-            private var currentAcceleration = 0f
+            private var lastAcceleration = SensorManager.GRAVITY_EARTH
+            private var currentAcceleration = SensorManager.GRAVITY_EARTH
+            private var lastShakeTime = 0L
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event != null) {
                     val x = event.values[0]; val y = event.values[1]; val z = event.values[2]
                     lastAcceleration = currentAcceleration
                     currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
-                    if (currentAcceleration - lastAcceleration > 12f) { petViewModel.resetTasks(petId) }
+                    val now = System.currentTimeMillis()
+                    // 1.5 s cooldown so one shake only resets the checklist once
+                    if (currentAcceleration - lastAcceleration > 12f && now - lastShakeTime > 1500) {
+                        lastShakeTime = now
+                        petViewModel.resetTasks(petId)
+                    }
                 }
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
