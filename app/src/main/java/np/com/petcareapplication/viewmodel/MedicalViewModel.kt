@@ -12,24 +12,22 @@ import kotlinx.coroutines.launch
 import np.com.petcareapplication.model.MedicalRecord
 import np.com.petcareapplication.repository.PetRepository
 
-/**
- * ViewModel for managing pet medical records (vaccinations, checkups, etc.).
- * Fulfills the prototype requirement for "managing healthcare records".
- */
+// Looks after a pet's health records (vaccinations, checkups and medication)
+// for the Health Records screen
 class MedicalViewModel(private val repository: PetRepository = PetRepository()) : ViewModel() {
 
+    // This pet's health records
     private val _records = MutableStateFlow<List<MedicalRecord>>(emptyList())
     val records: StateFlow<List<MedicalRecord>> = _records
 
+    // Short messages so the user knows whether saving or deleting worked
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    /**
-     * Loads all medical records for a specific pet from Firestore.
-     */
+    // Listen to this pet's records in Firestore, newest first
     fun loadRecords(petId: String) {
         viewModelScope.launch {
             repository.getMedicalRecords(petId)
@@ -43,10 +41,7 @@ class MedicalViewModel(private val repository: PetRepository = PetRepository()) 
         }
     }
 
-    /**
-     * Adds a new health record.
-     * Displays message: "Health record saved"
-     */
+    // Saves a new record from the "Log Health Event" pop-up and shows "Health record saved" for 2 seconds
     fun addRecord(record: MedicalRecord) {
         viewModelScope.launch {
             try {
@@ -60,10 +55,8 @@ class MedicalViewModel(private val repository: PetRepository = PetRepository()) 
         }
     }
 
-    /**
-     * Deletes a specific medical entry.
-     * Displays message: "Health record deleted"
-     */
+    // Deletes a record after the user confirms. The screen checks for this exact message
+    // ("Health record deleted") to show it in pink instead of green
     fun deleteRecord(recordId: String) {
         viewModelScope.launch {
             try {
@@ -77,6 +70,7 @@ class MedicalViewModel(private val repository: PetRepository = PetRepository()) 
         }
     }
 
+    // Hide the error message
     fun clearError() {
         _errorMessage.value = null
     }

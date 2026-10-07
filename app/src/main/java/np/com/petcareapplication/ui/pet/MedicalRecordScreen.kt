@@ -36,10 +36,8 @@ import np.com.petcareapplication.viewmodel.PetViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * MedicalRecordScreen: Tracks health history.
- * Fulfills core requirement: "Manage healthcare records".
- */
+// Health records for one pet: vaccinations, checkups and medication.
+// Each one can also be added to the care checklist as a one-time task
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicalRecordScreen(
@@ -53,6 +51,7 @@ fun MedicalRecordScreen(
     val successMessage by medicalViewModel.successMessage.collectAsState()
     val user by authViewModel.user.collectAsState()
 
+    // Load this pet's records when the screen opens
     LaunchedEffect(petId) { medicalViewModel.loadRecords(petId) }
 
     MedicalRecordScreenContent(
@@ -62,6 +61,7 @@ fun MedicalRecordScreen(
         onDeleteRecord = { medicalViewModel.deleteRecord(it) },
         onAddRecord = { type, notes, timestamp, addToChecklist ->
             medicalViewModel.addRecord(MedicalRecord(petId = petId, type = type, notes = notes, date = timestamp))
+            // If the box was ticked, also add a one-time task so the appointment shows on the checklist
             if (addToChecklist) {
                 val df = SimpleDateFormat("MMM dd", Locale.getDefault())
                 petViewModel.addTask(
@@ -75,13 +75,14 @@ fun MedicalRecordScreen(
                         type = "ONE-TIME",
                         dueDate = timestamp
                     ),
-                    onComplete = { /* Task added successfully */ }
+                    onComplete = { /* nothing else needed here */ }
                 )
             }
         }
     )
 }
 
+// The screen layout, kept separate from the ViewModels so the preview can use sample records
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicalRecordScreenContent(
@@ -91,6 +92,7 @@ fun MedicalRecordScreenContent(
     onDeleteRecord: (String) -> Unit,
     onAddRecord: (String, String, Long, Boolean) -> Unit
 ) {
+    // showAddDialog opens the "Log Health Event" pop-up. recordToDelete opens the confirm dialog
     var showAddDialog by remember { mutableStateOf(false) }
     var recordToDelete by remember { mutableStateOf<MedicalRecord?>(null) }
 
@@ -130,9 +132,9 @@ fun MedicalRecordScreenContent(
                 }
             }
 
-            // SUCCESS MESSAGE OVERLAY WITH DYNAMIC COLOR
+            // Message at the bottom: pink when a record is deleted, green otherwise
             if (successMessage != null) {
-                // Fixed colours keep the white text readable in light and dark mode
+                // Fixed colours, so the white text is easy to read in light and dark mode
                 val bgColor = if (successMessage == "Health record deleted") Color(0xFFC2185B) else Color(0xFF2E7D32)
                 Surface(
                     modifier = Modifier
@@ -166,6 +168,7 @@ fun MedicalRecordScreenContent(
     }
 }
 
+// One health record in the list: type, notes and date, with a bin button
 @Composable
 fun MedicalRecordItem(record: MedicalRecord, onDelete: () -> Unit) {
     val df = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -185,15 +188,17 @@ fun MedicalRecordItem(record: MedicalRecord, onDelete: () -> Unit) {
     }
 }
 
+// Pop-up for adding a new health record
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMedicalRecordDialog(onDismiss: () -> Unit, onConfirm: (String, String, Long, Boolean) -> Unit) {
     val context = LocalContext.current
     var type by remember { mutableStateOf("Vaccination") }
     var notes by remember { mutableStateOf("") }
+    // Ticked by default, so appointments end up on the checklist unless the user unticks it
     var addToChecklist by remember { mutableStateOf(true) }
 
-    // NEW: Date Picker support for medical records
+    // The date starts as today, and the calendar lets the user pick another day
     val calendar = Calendar.getInstance()
     var selectedDate by remember { mutableStateOf(calendar) }
     val df = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -217,6 +222,7 @@ fun AddMedicalRecordDialog(onDismiss: () -> Unit, onConfirm: (String, String, Lo
                     FilterChip(selected = type == "Medication", onClick = { type = "Medication" }, label = { Text("Medication") })
                 }
 
+                // Date box can't be typed in. The calendar opens from the icon
                 OutlinedTextField(
                     value = df.format(selectedDate.time), onValueChange = {}, label = { Text("Date") },
                     modifier = Modifier.fillMaxWidth(), readOnly = true,
@@ -237,12 +243,14 @@ fun AddMedicalRecordDialog(onDismiss: () -> Unit, onConfirm: (String, String, Lo
                 }
             }
         },
+        // Save sends everything back to the screen, which saves it through the ViewModel
         confirmButton = { Button(onClick = { onConfirm(type, notes, selectedDate.timeInMillis, addToChecklist) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
 
+// What the user sees before adding any health records
 @Composable
 fun EmptyMedicalPlaceholder() {
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -252,6 +260,7 @@ fun EmptyMedicalPlaceholder() {
     }
 }
 
+// Preview with three made-up records
 @Preview(showBackground = true)
 @Composable
 fun MedicalRecordScreenPreview() {

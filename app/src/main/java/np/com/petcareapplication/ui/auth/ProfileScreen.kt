@@ -33,6 +33,7 @@ import np.com.petcareapplication.ui.theme.BluePrimary
 import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 
+// Profile screen where the user can change their name and phone number
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
@@ -43,6 +44,7 @@ fun ProfileScreen(
     val profileError by viewModel.profileError.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
 
+    // Get the latest details from Firestore every time the screen opens
     LaunchedEffect(Unit) {
         viewModel.loadUserData()
     }
@@ -53,11 +55,13 @@ fun ProfileScreen(
         profileError = profileError,
         successMessage = successMessage,
         onBack = onBack,
+        // The photo is passed as null because profile pictures aren't used without Firebase Storage
         onUpdateProfile = { name, phone -> viewModel.updateProfile(name, phone, null) },
         onClearErrors = { viewModel.clearErrors() }
     )
 }
 
+// The form itself, kept separate from the ViewModel so it can be previewed
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreenContent(
@@ -76,6 +80,7 @@ fun ProfileScreenContent(
     var nameError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
 
+    // Fill the boxes with the saved details once they have loaded
     LaunchedEffect(userData) {
         userData?.let {
             name = it.name
@@ -86,6 +91,7 @@ fun ProfileScreenContent(
     // Only enable "Update Profile" once something has actually changed
     val hasChanges = userData != null && (name.trim() != userData.name || phone != userData.phoneNumber)
 
+    // Uses the same name and phone rules as the Register screen
     fun validate(): Boolean {
         nameError = Validators.validateFullName(name)
         phoneError = Validators.validatePhone(phone)
@@ -124,6 +130,7 @@ fun ProfileScreenContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Simple person icon in place of a profile photo
                 Surface(
                     modifier = Modifier.size(100.dp),
                     shape = RoundedCornerShape(32.dp),
@@ -139,6 +146,7 @@ fun ProfileScreenContent(
                     }
                 }
 
+                // Email is only shown here, it can't be edited on this screen
                 Text(
                     text = if (userData?.email.isNullOrBlank()) "" else "Signed in as ${userData?.email}",
                     fontSize = 14.sp,
@@ -150,6 +158,7 @@ fun ProfileScreenContent(
                 PetCareTextField(
                     value = name,
                     onValueChange = { input ->
+                        // Only letters and spaces are allowed in a name
                         val filtered = input.filter { it.isLetter() || it.isWhitespace() }
                         name = filtered
                         nameError = null
@@ -167,6 +176,7 @@ fun ProfileScreenContent(
                 PetCareTextField(
                     value = phone,
                     onValueChange = { input ->
+                        // Digits only, and no more than 10 of them
                         val filtered = input.filter { it.isDigit() }
                         if (filtered.length <= 10) {
                             phone = filtered
@@ -180,6 +190,7 @@ fun ProfileScreenContent(
                     leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                 )
 
+                // Message from Firebase if the update fails
                 if (profileError != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
@@ -196,6 +207,7 @@ fun ProfileScreenContent(
                     }
                 }
 
+                // Green box once the details are saved
                 if (successMessage != null) {
                     Surface(
                         color = Color(0xFFE8F5E9),
@@ -223,6 +235,7 @@ fun ProfileScreenContent(
                         if (validate()) {
                             onUpdateProfile(name.trim(), phone)
                         } else {
+                            // A quick toast as well, in case the error text is scrolled out of view
                             Toast.makeText(context, "Please fix input errors", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -232,6 +245,7 @@ fun ProfileScreenContent(
     }
 }
 
+// Preview with a made-up user so the screen can be checked in Android Studio
 @Preview(showBackground = true)
 @Composable
 fun ProfileScreenPreview() {

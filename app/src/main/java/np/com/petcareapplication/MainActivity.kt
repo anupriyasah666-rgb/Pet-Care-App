@@ -22,9 +22,11 @@ import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
 
+// The app's only Activity. Every screen is a Composable shown inside it
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Let the app draw behind the status bar and navigation bar
         enableEdgeToEdge()
         setContent {
             PetCareApplicationTheme {
@@ -34,21 +36,22 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Sets up navigation: which screen each route opens and where each button goes
 @Composable
 fun PetCareApp() {
     val navController = rememberNavController()
 
-    // Shared across every screen in the nav graph
+    // Created once here and passed to every screen, so they all share the same data
     val authViewModel: AuthViewModel = viewModel()
     val petViewModel: PetViewModel = viewModel()
 
-    // Firebase Auth securely persists the session on the device, so a returning user
-    // goes straight to the dashboard. Only users who are signed out see the Login screen.
-    // The start destination is decided once, when the nav graph is first created.
+    // Firebase remembers the login on the phone, so someone who is already signed in goes straight to Home.
+    // Only signed-out users see the Login screen. This is worked out once, when the app starts
     val startDestination = remember {
         if (authViewModel.user.value != null) Screen.Home.route else Screen.Login.route
     }
 
+    // One NavHost holds every screen in the app
     NavHost(
         navController = navController,
         startDestination = startDestination
@@ -58,6 +61,7 @@ fun PetCareApp() {
                 viewModel = authViewModel,
                 onNavigateToRegister = { navController.navigate(Screen.Register.route) },
                 onLoginSuccess = {
+                    // Remove Login from the back stack, so pressing back on Home doesn't go back to Login
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -68,11 +72,13 @@ fun PetCareApp() {
         composable(Screen.Register.route) {
             RegisterScreen(
                 viewModel = authViewModel,
-                // Go back to the existing Login screen instead of stacking a second one
+                // Go back to the Login screen that's already open instead of opening a second one
                 onNavigateToLogin = {
                     if (!navController.popBackStack()) navController.navigate(Screen.Login.route)
                 },
                 onRegisterSuccess = {
+                    // Firebase signs a new user in straight away, so sign them out
+                    // and send them to Login to sign in with their new details
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Register.route) { inclusive = true }
@@ -98,7 +104,7 @@ fun PetCareApp() {
                     navController.navigate(Screen.Profile.route)
                 },
                 onLogout = {
-                    petViewModel.clearSession()   // stop listeners + clear previous user's data
+                    petViewModel.clearSession()   // stop the live listeners and clear the last user's data
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
@@ -123,6 +129,7 @@ fun PetCareApp() {
             )
         }
 
+        // The routes below carry an id (petId or taskId), which is read from the route and passed to the screen
         composable(
             route = Screen.EditPet.route,
             arguments = listOf(navArgument("petId") { type = NavType.StringType })
@@ -192,6 +199,7 @@ fun PetCareApp() {
             )
         }
 
+        // The expense screens make their own ExpenseViewModel. That's fine because the list updates live from Firestore
         composable(
             route = Screen.Expenses.route,
             arguments = listOf(navArgument("petId") { type = NavType.StringType })

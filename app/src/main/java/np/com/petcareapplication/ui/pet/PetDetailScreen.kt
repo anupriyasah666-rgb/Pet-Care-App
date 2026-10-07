@@ -55,6 +55,7 @@ import np.com.petcareapplication.viewmodel.PetViewModel
 import java.util.Locale
 import kotlin.math.sqrt
 
+// Full profile for one pet, with its care routine, spending total and links to Bills and Health
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PetDetailScreen(
@@ -76,9 +77,10 @@ fun PetDetailScreen(
     val totalSpent by expenseViewModel.totalSpent.collectAsState()
     val successMessage by petViewModel.successMessage.collectAsState()
 
+    // Find this pet in the list the ViewModel already has
     val pet = pets.find { it.id == petId }
 
-    // GESTURE: Shake to Reset Checklist
+    // Shake to reset: shaking the phone on this screen unticks all of this pet's tasks
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -92,7 +94,7 @@ fun PetDetailScreen(
                     lastAcceleration = currentAcceleration
                     currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
                     val now = System.currentTimeMillis()
-                    // 1.5 s cooldown so one shake only resets the checklist once
+                    // A sudden jump in movement counts as a shake. The 1.5 second wait means one shake only resets once
                     if (currentAcceleration - lastAcceleration > 12f && now - lastShakeTime > 1500) {
                         lastShakeTime = now
                         petViewModel.resetTasks(petId)
@@ -102,15 +104,18 @@ fun PetDetailScreen(
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
         sensorManager.registerListener(shakeListener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        // Stop listening when the user leaves the screen
         onDispose { sensorManager.unregisterListener(shakeListener) }
     }
 
+    // Make sure the pets, this pet's tasks and its expenses are loaded
     LaunchedEffect(user) { user?.uid?.let { petViewModel.loadPets(it) } }
     LaunchedEffect(petId) {
         petViewModel.loadTasks(petId)
         expenseViewModel.loadExpenses(petId)
     }
 
+    // Show a loading spinner until the pet has been found
     if (pet == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
         return
@@ -134,6 +139,7 @@ fun PetDetailScreen(
     )
 }
 
+// The screen layout. It only takes plain data and callbacks, so the preview can use a sample pet
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PetDetailScreenContent(
@@ -153,10 +159,12 @@ fun PetDetailScreenContent(
     onDeletePet: () -> Unit
 ) {
     val context = LocalContext.current
+    // These control which menu or confirm dialog is open
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var taskToDelete by remember { mutableStateOf<CareTask?>(null) }
+    // Group tasks by category (Feeding, Exercise...) so each group gets its own heading
     val groupedTasks = tasks.groupBy { it.category.ifBlank { "Other" } }
 
     Scaffold(
@@ -165,8 +173,10 @@ fun PetDetailScreenContent(
                 title = { Text(pet.name, fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
+                    // Edit pet
                     IconButton(onClick = { onEditPetClick(pet.id) }) { Icon(Icons.Default.Edit, contentDescription = "Edit ${pet.name}", tint = MaterialTheme.colorScheme.primary) }
 
+                    // Share the whole care routine by SMS: pet allergies and diet first, then every task
                     IconButton(onClick = {
                         val header = "Care Instructions for ${pet.name}\n" +
                                 "Allergies: ${pet.allergies.ifEmpty { "None" }}\n" +
@@ -180,6 +190,7 @@ fun PetDetailScreenContent(
                         sendSms(context, header + taskList)
                     }) { Icon(Icons.Default.Share, contentDescription = "Share whole care routine by SMS", tint = MaterialTheme.colorScheme.primary) }
 
+                    // Three-dot menu with Clear All Tasks and Delete Pet
                     IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More options") }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
@@ -211,10 +222,12 @@ fun PetDetailScreenContent(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Top card with photo, age, weight, total spent and the Bills and Health buttons
                 item {
                     PetDetailedInfoCard(pet, totalSpent, onClickExpenses = { onViewExpensesClick(pet.id) }, onClickMedical = { onViewMedicalClick(pet.id) })
                 }
 
+                // Profile details. Empty fields show "Not specified"
                 item {
                     PetCareCard {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -238,17 +251,20 @@ fun PetDetailScreenContent(
                 item {
                     Column {
                         Text("Routine Checklist", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        // Little hint so the user knows the gestures are there
                         Text("Swipe right to complete • Swipe left to delete • Send icon to delegate by SMS", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
                 groupedTasks.forEach { (category, categoryTasks) ->
+                    // Category heading that sticks to the top while scrolling through that group
                     stickyHeader {
                         Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)) {
                             Text(text = category, modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
                     items(categoryTasks, key = { it.id }) { task ->
+                        // Swipe gestures: right marks the task done or undone, left asks before deleting
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 when (value) {
@@ -268,6 +284,7 @@ fun PetDetailScreenContent(
                         SwipeToDismissBox(
                             state = dismissState,
                             backgroundContent = {
+                                // Green with a tick when swiping right, red with a bin when swiping left
                                 val color = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Color(0xFF4CAF50) else Color(0xFFE57373)
                                 Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(color).padding(horizontal = 24.dp),
                                     contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
@@ -278,7 +295,7 @@ fun PetDetailScreenContent(
                                     task = task,
                                     onToggle = { onToggleTask(task) },
                                     onEditClick = { onEditTaskClick(task.id) },
-                                    // DELEGATE AN ITEM: text this one task (plus pet safety info) to a sitter
+                                    // Delegate: text just this one task, plus the pet's allergies and diet, to a sitter
                                     onDelegateClick = {
                                         sendSms(
                                             context,
@@ -303,14 +320,14 @@ fun PetDetailScreenContent(
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
-            // UI MESSAGE OVERLAY IN GREEN COLOR
+            // Message at the bottom of the screen
             if (successMessage != null) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 96.dp, start = 24.dp, end = 24.dp),
                     shape = RoundedCornerShape(24.dp),
-                    // Deletions use deep pink, everything else green (fixed colours stay readable in dark mode)
+                    // Pink when a task is deleted, green for everything else. Fixed colours so white text is readable in dark mode
                     color = if (successMessage == "Task is deleted") Color(0xFFC2185B) else Color(0xFF2E7D32),
                     contentColor = Color.White,
                     shadowElevation = 8.dp
@@ -325,6 +342,7 @@ fun PetDetailScreenContent(
                 }
             }
 
+            // Confirm dialogs, so nothing gets deleted by mistake
             if (showDeleteDialog) {
                 ConfirmDeleteDialog(
                     title = "Delete Pet Profile?",
@@ -356,6 +374,7 @@ fun PetDetailScreenContent(
     }
 }
 
+// One row in the profile details: icon, label and value
 @Composable
 fun PetDetailInfoItem(label: String, value: String, icon: ImageVector) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -368,6 +387,7 @@ fun PetDetailInfoItem(label: String, value: String, icon: ImageVector) {
     }
 }
 
+// Summary card at the top of the screen
 @Composable
 fun PetDetailedInfoCard(pet: Pet, totalSpent: Double, onClickExpenses: () -> Unit, onClickMedical: () -> Unit) {
     PetCareCard {
@@ -385,6 +405,7 @@ fun PetDetailedInfoCard(pet: Pet, totalSpent: Double, onClickExpenses: () -> Uni
                     Text(text = pet.name, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
                     Text(text = pet.breed, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        // Small badges for age and weight
                         InfoBadge(text = "${pet.age} yrs", icon = Icons.Default.Cake)
                         InfoBadge(text = "${pet.weight} kg", icon = Icons.Default.Scale, color = MaterialTheme.colorScheme.secondary)
                     }
@@ -425,6 +446,7 @@ fun PetDetailedInfoCard(pet: Pet, totalSpent: Double, onClickExpenses: () -> Uni
     }
 }
 
+// Small rounded label with an icon, used for age and weight
 @Composable
 fun InfoBadge(text: String, icon: ImageVector, color: Color = MaterialTheme.colorScheme.primary) {
     Surface(shape = RoundedCornerShape(12.dp), color = color.copy(alpha = 0.1f)) {
@@ -436,6 +458,7 @@ fun InfoBadge(text: String, icon: ImageVector, color: Color = MaterialTheme.colo
     }
 }
 
+// One task card: tick circle, title, time, and buttons to delegate or edit
 @Composable
 fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Unit, onDelegateClick: () -> Unit = {}) {
     PetCareCard {
@@ -448,7 +471,7 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Un
                     Text(text = task.schedule, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                // Delegate this single task by SMS
+                // Send button for delegating this task by SMS
                 IconButton(onClick = onDelegateClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
@@ -467,6 +490,7 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Un
                     )
                 }
             }
+            // Only show supplies and instructions if the task has them
             if (task.supplies.isNotEmpty() || task.notes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 if (task.supplies.isNotEmpty()) {
@@ -480,6 +504,7 @@ fun EnhancedTaskItem(task: CareTask, onToggle: () -> Unit, onEditClick: () -> Un
     }
 }
 
+// What the user sees before any tasks are added
 @Composable
 fun EmptyRoutinePlaceholder() {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -489,6 +514,7 @@ fun EmptyRoutinePlaceholder() {
     }
 }
 
+// Preview with a made-up pet and three tasks
 @Preview(showBackground = true)
 @Composable
 fun PetDetailScreenPreview() {
@@ -528,12 +554,9 @@ fun PetDetailScreenPreview() {
     }
 }
 
-/**
- * Opens the phone's SMS app with the message already filled in, so the user just picks
- * a contact and taps send. ACTION_SENDTO with "smsto:" means only SMS apps can handle it,
- * and no SEND_SMS permission is needed because the user sends the message themselves.
- * If the device has no SMS app (e.g. some tablets), a message is shown instead of crashing.
- */
+// Opens the phone's SMS app with the message already typed in, so the user just picks a contact and presses send.
+// "smsto:" means only messaging apps open it, and the app doesn't need the SEND_SMS permission
+// because the user sends the text themselves. If there's no SMS app (some tablets), a short message is shown instead of crashing
 fun sendSms(context: Context, body: String) {
     val intent = Intent(Intent.ACTION_SENDTO).apply {
         data = Uri.parse("smsto:")

@@ -14,21 +14,20 @@ import np.com.petcareapplication.model.MedicalRecord
 import java.util.UUID
 
 /**
- * PetRepository manages Firestore data and Firebase Storage for pet images.
- * This repository handles all data for Pets, Tasks, Expenses, and Medical Records.
+ * Reads and saves all the pet data in Firestore: pets, tasks, expenses and health
+ * records. The ViewModels call these functions instead of using Firebase directly.
  */
 class PetRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
-    
+
     private val petsCollection = firestore.collection("pets")
     private val tasksCollection = firestore.collection("tasks")
     private val expensesCollection = firestore.collection("expenses")
     private val recordsCollection = firestore.collection("medical_records")
 
-    /**
-     * Uploads an image to Firebase Storage and returns the download URL.
-     */
+    // Uploads a photo from the gallery and gives back its link. This needs Firebase
+    // Storage, which is on the paid Blaze plan, so for now photos are added as links instead.
     suspend fun uploadPetImage(imageUri: Uri): String {
         val fileName = UUID.randomUUID().toString()
         val ref = storage.reference.child("pet_images/$fileName")
@@ -36,8 +35,11 @@ class PetRepository {
         return ref.downloadUrl.await().toString()
     }
 
-    // --- PET MANAGEMENT ---
+    // ---------- Pets ----------
 
+    // Gives a live list of this owner's pets. The snapshot listener sends a fresh list
+    // whenever a pet is added, edited or deleted, and awaitClose removes the listener
+    // once nothing is listening any more.
     fun getPets(ownerId: String): Flow<List<Pet>> = callbackFlow {
         val subscription = petsCollection
             .whereEqualTo("ownerId", ownerId)
@@ -52,40 +54,40 @@ class PetRepository {
         awaitClose { subscription.remove() }
     }
 
+    // Firestore makes up the document ID for a new pet
     suspend fun addPet(pet: Pet) {
         petsCollection.add(pet).await()
     }
 
+    // Overwrites the pet with the same ID
     suspend fun updatePet(pet: Pet) {
         petsCollection.document(pet.id).set(pet).await()
     }
 
-    /**
-     * CORE REQUIREMENT: Delete items - remove unwanted pets.
-     */
+    // Removes the pet itself. Its tasks, expenses and health records are removed
+    // separately in cleanupPetData().
     suspend fun deletePet(petId: String) {
-        // Delete the pet profile primary record
         petsCollection.document(petId).delete().await()
     }
 
-    /**
-     * Performs background cleanup for a deleted pet.
-     */
+    // Runs after a pet is deleted, so its tasks, expenses and health records
+    // aren't left behind in the database with no pet attached.
     suspend fun cleanupPetData(petId: String) {
-        // Clear the routine (tasks)
-        deleteRoutine(petId) 
+        // Tasks
+        deleteRoutine(petId)
 
-        // Clear expenses
+        // Expenses
         val expenses = expensesCollection.whereEqualTo("petId", petId).get().await()
         for (doc in expenses.documents) { doc.reference.delete().await() }
 
-        // Clear medical records
+        // Health records
         val records = recordsCollection.whereEqualTo("petId", petId).get().await()
         for (doc in records.documents) { doc.reference.delete().await() }
     }
 
-    // --- TASK & ROUTINE MANAGEMENT ---
+    // ---------- Tasks ----------
 
+    // Live list of one pet's tasks, used on the Pet Detail screen
     fun getTasks(petId: String): Flow<List<CareTask>> = callbackFlow {
         val subscription = tasksCollection
             .whereEqualTo("petId", petId)
@@ -100,10 +102,8 @@ class PetRepository {
         awaitClose { subscription.remove() }
     }
 
-    /**
-     * Fulfills "Consolidation" requirement.
-     * Fetches all tasks across ALL pets for a specific owner.
-     */
+    // Live list of every task the owner has, across all their pets.
+    // This is what fills the "Today's Routine" list on the Home screen.
     fun getAllTasks(ownerId: String): Flow<List<CareTask>> = callbackFlow {
         val subscription = tasksCollection
             .whereEqualTo("ownerId", ownerId)
@@ -122,6 +122,7 @@ class PetRepository {
         tasksCollection.add(task).await()
     }
 
+    // Used both for editing a task and for ticking it off
     suspend fun updateTask(task: CareTask) {
         tasksCollection.document(task.id).set(task).await()
     }
@@ -130,9 +131,7 @@ class PetRepository {
         tasksCollection.document(taskId).delete().await()
     }
 
-    /**
-     * CORE REQUIREMENT: Delete care routines.
-     */
+    // Deletes every task for one pet. Used by "Clear All Tasks" and when a pet is deleted.
     suspend fun deleteRoutine(petId: String) {
         val tasks = tasksCollection.whereEqualTo("petId", petId).get().await()
         for (doc in tasks.documents) {
@@ -140,8 +139,9 @@ class PetRepository {
         }
     }
 
-    // --- EXPENSE TRACKING ---
+    // ---------- Expenses ----------
 
+    // Live list of one pet's expenses
     fun getExpenses(petId: String): Flow<List<Expense>> = callbackFlow {
         val subscription = expensesCollection
             .whereEqualTo("petId", petId)
@@ -164,8 +164,9 @@ class PetRepository {
         expensesCollection.document(expenseId).delete().await()
     }
 
-    // --- MEDICAL RECORDS ---
+    // ---------- Health records ----------
 
+    // Live list of one pet's health records
     fun getMedicalRecords(petId: String): Flow<List<MedicalRecord>> = callbackFlow {
         val subscription = recordsCollection
             .whereEqualTo("petId", petId)

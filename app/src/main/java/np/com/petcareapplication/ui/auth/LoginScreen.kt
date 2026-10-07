@@ -46,6 +46,7 @@ import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.ui.theme.PinkHighlight
 import np.com.petcareapplication.viewmodel.AuthViewModel
 
+// Connects the login form to AuthViewModel and reacts to what it reports back
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel = viewModel(),
@@ -60,12 +61,14 @@ fun LoginScreen(
     val isLoginLoading by viewModel.isLoginLoading.collectAsState()
     val isResetLoading by viewModel.isResetLoading.collectAsState()
 
+    // As soon as Firebase gives us a signed-in user, go to the Home screen
     LaunchedEffect(user) {
         if (user != null) {
             onLoginSuccess()
         }
     }
 
+    // The reset link message is shown as a toast. Other messages are shown on the card itself
     LaunchedEffect(successMessage) {
         successMessage?.let {
             if (it.contains("reset link", ignoreCase = true)) {
@@ -83,6 +86,7 @@ fun LoginScreen(
         }
     }
 
+    // Same for errors inside the Reset Password dialog
     LaunchedEffect(resetError) {
         if (resetError != null) {
             delay(4000)
@@ -103,6 +107,8 @@ fun LoginScreen(
     )
 }
 
+// The actual login layout. It takes plain values and callbacks instead of the ViewModel,
+// which means the preview at the bottom can show it without Firebase
 @Composable
 fun LoginScreenContent(
     loginError: String?,
@@ -132,6 +138,7 @@ fun LoginScreenContent(
         }
     }
 
+    // Check the fields here first, so we don't call Firebase with an empty or badly typed email
     fun validate(): Boolean {
         emailError = Validators.validateEmail(email)
         passwordError = if (password.isEmpty()) "Password is required" else null
@@ -139,8 +146,10 @@ fun LoginScreenContent(
         return isValid
     }
 
+    // Small pop-up where the user types their email to get a reset link
     if (showResetDialog) {
         AlertDialog(
+            // Don't let the dialog close while the link is still being sent
             onDismissRequest = {
                 if (!isResetLoading) {
                     showResetDialog = false
@@ -160,6 +169,7 @@ fun LoginScreenContent(
                     )
 
                     resetError?.let { error ->
+                        // Firebase's wording here is quite technical, so show something simpler
                         val displayedResetError = if (error.contains("no user record", ignoreCase = true) ||
                             error.contains("user not found", ignoreCase = true)) {
                             "Email does not exist"
@@ -200,7 +210,7 @@ fun LoginScreenContent(
             containerColor = MaterialTheme.colorScheme.surface
         )
 
-        // Auto-close dialog on success
+        // Close the dialog once the reset link has been sent
         LaunchedEffect(successMessage) {
             if (successMessage != null && successMessage.contains("reset link")) {
                 showResetDialog = false
@@ -225,7 +235,7 @@ fun LoginScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Stylish Logo Area with "Happy Pets" in Cursive
+            // App logo with the name "Happy Pets" written in a cursive font
             Surface(
                 modifier = Modifier.size(160.dp),
                 shape = CircleShape,
@@ -327,6 +337,7 @@ fun LoginScreenContent(
                     )
 
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                        // Copy whatever email is already typed so the user doesn't have to type it again
                         TextButton(onClick = {
                             resetEmail = email
                             showResetDialog = true
@@ -341,6 +352,8 @@ fun LoginScreenContent(
                     }
 
                     loginError?.let { error ->
+                        // Firebase's message for a wrong email or password is long and confusing,
+                        // so the user just sees "Invalid credentials"
                         val displayedError = if (error.contains("auth credential", ignoreCase = true)) {
                             "Invalid credentials"
                         } else {
@@ -362,6 +375,7 @@ fun LoginScreenContent(
                         }
                     }
 
+                    // Any other success message (not the reset one) shows in a green box
                     successMessage?.let { message ->
                         if (!message.contains("reset link", ignoreCase = true)) {
                             Surface(
@@ -397,6 +411,7 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Text colour is darkened on the blue theme, otherwise it is hard to read on the background
             TextButton(onClick = onNavigateToRegister) {
                 Text(
                     text = "New here? Create an Account",
@@ -409,6 +424,7 @@ fun LoginScreenContent(
     }
 }
 
+// Lets me see the screen in Android Studio's design view without running the app
 @Preview(showBackground = true)
 @Composable
 fun LoginScreenPreview() {

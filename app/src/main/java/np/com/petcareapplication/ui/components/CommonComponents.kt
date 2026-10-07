@@ -25,9 +25,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * A custom button styled for the PetCare app.
- */
+// The main button used across the app. While isLoading is true it shows a spinner
+// and can't be pressed, so the user can't send the same request twice
 @Composable
 fun PetCareButton(
     text: String,
@@ -43,6 +42,7 @@ fun PetCareButton(
         modifier = modifier
             .fillMaxWidth()
             .height(56.dp),
+        // Turn the button off while something is loading
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
@@ -64,10 +64,8 @@ fun PetCareButton(
     }
 }
 
-/**
- * Standard text field with our app's specific styling and error support.
- * Configured to reduce unwanted keyboard popups like recording/emojis where possible.
- */
+// Text box used on every form, with the error message shown in red underneath.
+// Autocorrect is switched off, and email and password boxes never start with a capital letter
 @Composable
 fun PetCareTextField(
     value: String,
@@ -118,9 +116,7 @@ fun PetCareTextField(
     }
 }
 
-/**
- * A pre-styled card that we use to hold pet info and tasks.
- */
+// Rounded card used for pets, tasks and other items in lists
 @Composable
 fun PetCareCard(
     modifier: Modifier = Modifier,
@@ -136,12 +132,8 @@ fun PetCareCard(
     )
 }
 
-/**
- * Reusable confirmation dialog for every destructive action in the app
- * (delete pet, clear routine, delete task, delete expense, delete health record).
- * Uses the theme's error colour so the destructive button is clearly signposted
- * in both light and dark mode, following Material 3 dialog guidance.
- */
+// Used before anything gets deleted (a pet, a routine, a task, an expense or a health record).
+// The delete button uses the theme's error colour, so it looks like a warning in light and dark mode
 @Composable
 fun ConfirmDeleteDialog(
     title: String,
@@ -169,12 +161,9 @@ fun ConfirmDeleteDialog(
     )
 }
 
-/**
- * Circular "mark as done" control used on the Home and Pet Detail checklists.
- * The visible circle stays 32dp, but the touch target is 48dp to meet the Material
- * minimum. toggleable() with Role.Checkbox lets TalkBack announce it as a checkbox
- * and read out whether the task is checked.
- */
+// The round tick button for marking a task as done on the Home and Pet Detail screens.
+// The circle you see is 32dp, but the area you can tap is 48dp so it's easier to hit.
+// Role.Checkbox lets TalkBack read it out as a checkbox and say if it's ticked
 @Composable
 fun TaskCheckCircle(
     checked: Boolean,
@@ -185,6 +174,7 @@ fun TaskCheckCircle(
         modifier = Modifier
             .size(48.dp)
             .clip(CircleShape)
+            // Tap anywhere in the 48dp area to tick or untick
             .toggleable(
                 value = checked,
                 role = Role.Checkbox,
@@ -209,7 +199,7 @@ fun TaskCheckCircle(
             if (checked) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = null, // state is announced by toggleable semantics
+                    contentDescription = null, // TalkBack already gets the ticked state from toggleable()
                     tint = MaterialTheme.colorScheme.onSecondary,
                     modifier = Modifier.size(20.dp)
                 )

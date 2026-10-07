@@ -12,24 +12,27 @@ import kotlinx.coroutines.launch
 import np.com.petcareapplication.model.Expense
 import np.com.petcareapplication.repository.PetRepository
 
-/**
- * ViewModel responsible for managing pet-related expenses.
- */
+// Looks after a pet's expenses for the Expense and Add Expense screens.
+// It uses the same PetRepository as the pets and tasks, since everything is in Firestore
 class ExpenseViewModel(private val repository: PetRepository = PetRepository()) : ViewModel() {
 
+    // This pet's expenses
     private val _expenses = MutableStateFlow<List<Expense>>(emptyList())
     val expenses: StateFlow<List<Expense>> = _expenses
 
+    // Running total shown on the Expense screen and the Pet Detail card
     private val _totalSpent = MutableStateFlow(0.0)
     val totalSpent: StateFlow<Double> = _totalSpent
 
-    // Feedback states for better UX
+    // Short messages so the user knows whether saving or deleting worked
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    // Listen to this pet's expenses in Firestore. Each time the list changes,
+    // the total is worked out again, so it's always up to date
     fun loadExpenses(petId: String) {
         viewModelScope.launch {
             repository.getExpenses(petId)
@@ -41,10 +44,8 @@ class ExpenseViewModel(private val repository: PetRepository = PetRepository()) 
         }
     }
 
-    /**
-     * Fulfills: Track expenses.
-     * Displays: "Record Saved"
-     */
+    // Saves a new expense from the Add Expense screen.
+    // Shows "Record Saved" for a moment, then onComplete takes the user back
     fun addExpense(expense: Expense, onComplete: () -> Unit) {
         viewModelScope.launch {
             try {
@@ -59,10 +60,8 @@ class ExpenseViewModel(private val repository: PetRepository = PetRepository()) 
         }
     }
 
-    /**
-     * Fulfills: Delete items (Expense).
-     * Displays: "Expense record removed"
-     */
+    // Deletes an expense after the user confirms on the Expense screen.
+    // The list and the total update by themselves, because loadExpenses is still listening
     fun deleteExpense(expenseId: String) {
         viewModelScope.launch {
             try {
@@ -76,5 +75,6 @@ class ExpenseViewModel(private val repository: PetRepository = PetRepository()) 
         }
     }
 
+    // Used by Add Expense to hide the error after a few seconds
     fun clearErrorMessage() { _errorMessage.value = null }
 }

@@ -13,28 +13,32 @@ import kotlinx.coroutines.withTimeout
 import np.com.petcareapplication.model.User
 import np.com.petcareapplication.repository.AuthRepository
 
+// Handles login, sign-up, password reset, the user's profile and logout.
+// The screens call these functions, and this class talks to Firebase through AuthRepository
 class AuthViewModel(private val repository: AuthRepository = AuthRepository()) : ViewModel() {
 
-    // Holds the currently signed-in Firebase user. Null means "no one is logged in".
-    // Screens observe this to decide whether to navigate to Home or stay on Login.
+    // The Firebase user who is logged in, or null if nobody is.
+    // Screens watch this to decide whether to go to Home or stay on Login
     private val _user = MutableStateFlow<FirebaseUser?>(repository.currentUser)
     val user: StateFlow<FirebaseUser?> = _user
 
-    // Extra profile info (name, phone, etc.) pulled from Firestore, separate from FirebaseAuth.
+    // Extra profile details (name, phone) saved in Firestore, since Firebase Auth only holds the email
     private val _userData = MutableStateFlow<User?>(null)
     val userData: StateFlow<User?> = _userData
 
+    // Error and loading state for the Profile screen
     private val _profileError = MutableStateFlow<String?>(null)
     val profileError: StateFlow<String?> = _profileError
 
     private val _isProfileLoading = MutableStateFlow(false)
     val isProfileLoading: StateFlow<Boolean> = _isProfileLoading
 
-    // Shared success banner used across login/register/profile update.
-    // Screens just watch this and show a green message whenever it's non-null.
+    // One success message shared by login, register and profile update.
+    // Screens show a green box whenever it isn't null
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage
 
+    // Each screen has its own loading flag and error, so a problem on one screen doesn't show up on another
     private val _isLoginLoading = MutableStateFlow(false)
     val isLoginLoading: StateFlow<Boolean> = _isLoginLoading
 
@@ -53,44 +57,46 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
     private val _resetError = MutableStateFlow<String?>(null)
     val resetError: StateFlow<String?> = _resetError
 
+    // Called by the Login button
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             _isLoginLoading.value = true
             _loginError.value = null
             _successMessage.value = null
             try {
+                // Give up after 15 seconds so a bad connection doesn't leave the spinner going forever
                 val loggedInUser = withTimeout(15000) {
                     repository.login(email, pass)
                 }
 
-                // Stop the spinner as soon as we have a result — don't make the user
-                // wait through the success delay while the button still looks "busy".
+                // Stop the spinner as soon as there's a result, so the button
+                // doesn't keep looking busy during the 2 second wait below
                 _isLoginLoading.value = false
                 _successMessage.value = "Login successful!"
 
-                // Let the green message sit on screen for a couple seconds before we move on.
+                // Leave the green message on screen for 2 seconds before moving on
                 delay(2000)
 
-                // Only now do we flip _user, since that's what triggers navigation in the UI.
-                // Doing this after the delay is what keeps the message visible for the full 2s.
+                // Setting _user is what makes the screen go to Home, so it's done after the wait.
+                // That way the message stays visible for the full 2 seconds
                 _user.value = loggedInUser
                 _successMessage.value = null
             } catch (e: Exception) {
                 _isLoginLoading.value = false
+                // Firebase's own error text. LoginScreen swaps the long ones for simpler wording
                 _loginError.value = e.message
                 Log.e("AuthViewModel", "Login error", e)
             } finally {
-                // Belt-and-suspenders: guarantees the spinner never gets stuck even if
-                // something above throws in a way we didn't anticipate.
+                // Extra safety net so the spinner can never get stuck, even after an error we didn't expect
                 _isLoginLoading.value = false
             }
         }
     }
 
+    // Called by the Sign Up button
     fun register(name: String, email: String, pass: String, phoneNumber: String) {
-        // Guard against double taps / slow network double-submits. Without this, tapping
-        // Sign Up twice quickly can start two overlapping coroutines that stomp on each
-        // other's loading state, which is what made the spinner look like it never stops.
+        // Ignore extra taps while a sign-up is already running. Before this, tapping Sign Up twice quickly
+        // started two sign-ups at once and the spinner looked like it never stopped
         if (_isRegisterLoading.value) return
 
         viewModelScope.launch {
@@ -102,16 +108,16 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                     repository.register(name, email, pass, phoneNumber)
                 }
 
-                // Firestore write is done at this point — safe to stop the spinner
-                // and show the success message right away.
+                // The account and the Firestore profile are both saved now,
+                // so stop the spinner and show the success message
                 _isRegisterLoading.value = false
                 _successMessage.value = "Registration successful!"
 
-                // Keep the success message on screen for 2 seconds before navigating away.
+                // Leave the success message on screen for 2 seconds before leaving the page
                 delay(2000)
 
-                // This is what RegisterScreen's LaunchedEffect(user) is watching for —
-                // setting it now (after the delay) is what triggers the redirect to Login.
+                // RegisterScreen's LaunchedEffect(user) is waiting for this. Setting it after the wait
+                // is what sends the user on to the Login screen
                 _user.value = newUser
                 _successMessage.value = null
             } catch (e: Exception) {
@@ -124,6 +130,7 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
         }
     }
 
+    // Called from the Reset Password dialog on the Login screen
     fun resetPassword(email: String) {
         if (email.isBlank()) {
             _resetError.value = "Please enter your email address"
@@ -133,9 +140,9 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
             _isResetLoading.value = true
             _resetError.value = null
             try {
-                // The repository now checks Firestore for a matching email first, and
-                // throws if nothing is found — Firebase Auth itself always "succeeds"
-                // here for privacy reasons, so we can't rely on it alone.
+                // Firebase sends the reset link to this email. If the email isn't registered, Firebase
+                // may still report success (it does this on purpose, for privacy), so the user won't always
+                // see an error for an unknown email
                 repository.sendPasswordResetEmail(email)
                 _successMessage.value = "Password reset link sent to $email"
             } catch (e: Exception) {
@@ -147,6 +154,7 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
         }
     }
 
+    // Gets the user's name and phone from Firestore for the Profile screen
     fun loadUserData() {
         val currentUser = repository.currentUser
         if (currentUser != null) {
@@ -160,7 +168,9 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
         }
     }
 
+    // Saves a new name and phone number from the Profile screen
     fun updateProfile(name: String, phoneNumber: String, imageUri: Uri?) {
+        // Ignore extra taps while an update is already running
         if (_isProfileLoading.value) return
 
         viewModelScope.launch {
@@ -171,8 +181,8 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
             try {
                 withTimeout(10000) {
                     var finalImageUrl: String? = null
-                    // Only re-upload if this is a brand-new local image (not already a URL
-                    // we previously fetched from Firebase Storage).
+                    // Only upload if it's a new picture from the phone (not a web link).
+                    // The Profile screen always passes null at the moment, because Firebase Storage isn't used
                     if (imageUri != null && !imageUri.toString().startsWith("http")) {
                         finalImageUrl = repository.uploadProfileImage(imageUri)
                     }
@@ -182,7 +192,7 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                 _isProfileLoading.value = false
                 _successMessage.value = "Profile information updated successfully"
 
-                // Refresh local state so the Profile screen reflects the new data immediately.
+                // Load the details again so the Profile screen shows the new name and phone straight away
                 loadUserData()
 
                 delay(2000)
@@ -198,12 +208,14 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
         }
     }
 
+    // Signs out and forgets the user, so Login shows next time
     fun logout() {
         repository.logout()
         _user.value = null
         _userData.value = null
     }
 
+    // Let screens clear messages, e.g. when the user starts typing again
     fun clearSuccessMessage() { _successMessage.value = null }
     fun clearErrors() {
         _profileError.value = null

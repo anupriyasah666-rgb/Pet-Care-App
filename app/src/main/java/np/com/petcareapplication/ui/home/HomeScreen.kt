@@ -45,11 +45,8 @@ import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
 import kotlin.math.sqrt
 
-/**
- * HomeScreen: The central entry point.
- * Fulfills CORE REQUIREMENT: Consolidates all tasks for all pets.
- * Fulfills DESIRABLE FEATURE: Shake to reset today's consolidated checklist.
- */
+// The first screen after login. It lists all the user's pets and puts every pet's tasks
+// together in one "Today's Routine" list. Shaking the phone here resets today's checklist
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -67,7 +64,7 @@ fun HomeScreen(
     val allTasks by petViewModel.allTasks.collectAsState()
     val successMessage by petViewModel.successMessage.collectAsState()
 
-    // --- GESTURE CONTROL: Shake to Reset ALL tasks across all pets ---
+    // Shake to reset: listen to the accelerometer while the Home screen is open
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -81,11 +78,11 @@ fun HomeScreen(
                     lastAcceleration = currentAcceleration
                     currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
                     val now = System.currentTimeMillis()
-                    // A sudden jump in acceleration = a shake. The 1.5 s cooldown stops one
-                    // shake (which produces many sensor readings) from resetting several times.
+                    // A big sudden jump in movement counts as a shake. One shake gives lots of readings,
+                    // so the 1.5 second wait stops it resetting the list several times in a row
                     if (currentAcceleration - lastAcceleration > 13f && now - lastShakeTime > 1500) {
                         lastShakeTime = now
-                        // Uses the ViewModel's live list of all tasks, so it is never out of date
+                        // Ticks are cleared through the ViewModel, which always has the up-to-date task list
                         petViewModel.resetAllTasks()
                     }
                 }
@@ -93,9 +90,11 @@ fun HomeScreen(
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
         sensorManager.registerListener(shakeListener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        // Stop listening when the user leaves the screen, otherwise it keeps draining the battery
         onDispose { sensorManager.unregisterListener(shakeListener) }
     }
 
+    // Start listening to this user's pets and tasks once we know who is logged in
     LaunchedEffect(user) {
         user?.uid?.let { uid ->
             petViewModel.loadPets(uid)
@@ -116,6 +115,7 @@ fun HomeScreen(
     )
 }
 
+// The layout of the Home screen. It only takes plain data, so the preview can use sample pets
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreenContent(
@@ -139,7 +139,7 @@ fun HomeScreenContent(
                     }
                 },
                 actions = {
-                    // Profile - Optimized layout to avoid cropping
+                    // Profile button. Icon with a small label underneath, so the text doesn't get cut off
                     Column(
                         modifier = Modifier
                             .padding(end = 4.dp)
@@ -153,7 +153,7 @@ fun HomeScreenContent(
                         Text("Profile", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                     }
 
-                    // Logout - Optimized layout to avoid cropping
+                    // Logout button, laid out the same way
                     Column(
                         modifier = Modifier
                             .padding(end = 8.dp)
@@ -189,7 +189,7 @@ fun HomeScreenContent(
         Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
-                // Dynamic Banner showing tasks left
+                // Blue card at the top showing how many tasks are left
                 item {
                     ConsolidatedStatusSection(
                         pendingTasks = allTasks.count { !it.isCompleted },
@@ -200,20 +200,21 @@ fun HomeScreenContent(
                 item { Text(text = "My Pets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
                 if (pets.isEmpty()) { item { EmptyHomeState() } }
                 else {
-                    // Fix: Use a prefixed key to avoid collisions between Pets and Tasks in the same LazyColumn
+                    // Pets and tasks are in the same list, so the keys get a prefix to stop two items sharing the same id
                     items(pets, key = { "pet_${it.id}" }) { pet -> PetSummaryItem(pet = pet, onClick = { onPetClick(pet.id) }) }
                 }
 
-                // Show both pending and completed routine tasks as per request to see completion state on Home
+                // Ticked tasks stay on the list too, so the user can see what's already been done today
                 if (allTasks.isNotEmpty()) {
                     item { Spacer(modifier = Modifier.height(8.dp)) }
                     item { Text(text = "Today's Routine", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
 
-                    // Sorting to keep pending tasks at top
+                    // Unfinished tasks go first, finished ones drop to the bottom
                     val sortedTasks = allTasks.sortedBy { it.isCompleted }
 
-                    // Fix: Use a prefixed key to avoid collisions between Pets and Tasks in the same LazyColumn
+                    // Same idea as the pet keys above
                     items(sortedTasks, key = { "task_${it.id}" }) { task ->
+                        // Each task shows which pet it belongs to
                         val petName = pets.find { it.id == task.petId }?.name ?: "Pet"
                         HomeTaskItem(
                             task = task,
@@ -228,17 +229,17 @@ fun HomeScreenContent(
             }
 
             if (successMessage != null) {
-                // Fixed dark colours keep the white text readable in both light and dark mode:
-                // green for positive actions, deep pink for deletions, dark grey otherwise.
+                // Message pop-up near the bottom. The colours are dark on purpose so white text
+                // is easy to read in light and dark mode: green for good news, pink for deletes, grey for anything else
                 val bgColor = when (successMessage) {
-                    "Pet added", "Marked as completed", "Marked as undone", "Today's checklist reset!", "Task added", "Profile updated successfully", "Task updated successfully", "Care routine cleared successfully", "Health record saved" -> Color(0xFF2E7D32) // Green
-                    "Pet deleted", "Task is deleted" -> Color(0xFFC2185B) // Deep pink
-                    else -> Color(0xFF323232) // Material snackbar grey
+                    "Pet added", "Marked as completed", "Marked as undone", "Today's checklist reset!", "Task added", "Profile updated successfully", "Task updated successfully", "Care routine cleared successfully", "Health record saved" -> Color(0xFF2E7D32)
+                    "Pet deleted", "Task is deleted" -> Color(0xFFC2185B)
+                    else -> Color(0xFF323232)
                 }
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 96.dp, start = 24.dp, end = 24.dp), // Lifted higher to avoid FAB overlap
+                        .padding(bottom = 96.dp, start = 24.dp, end = 24.dp), // Sits above the Add Pet button so it doesn't cover it
                     shape = RoundedCornerShape(24.dp),
                     color = bgColor,
                     contentColor = Color.White,
@@ -256,6 +257,7 @@ fun HomeScreenContent(
     }
 }
 
+// Banner card that says how many tasks are left for today
 @Composable
 fun ConsolidatedStatusSection(pendingTasks: Int, totalTasks: Int) {
     PetCareCard(
@@ -281,6 +283,7 @@ fun ConsolidatedStatusSection(pendingTasks: Int, totalTasks: Int) {
     }
 }
 
+// One row in Today's Routine. Tap the circle to tick it off, or tap the row to edit it
 @Composable
 fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit: () -> Unit) {
     PetCareCard(modifier = Modifier.fillMaxWidth().clickable { onEdit() }) {
@@ -313,6 +316,7 @@ fun HomeTaskItem(task: CareTask, petName: String, onComplete: () -> Unit, onEdit
     }
 }
 
+// One pet card in the My Pets list. Shows the photo from the link if there is one, otherwise a paw icon
 @Composable
 fun PetSummaryItem(pet: Pet, onClick: () -> Unit) {
     PetCareCard(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
@@ -334,6 +338,7 @@ fun PetSummaryItem(pet: Pet, onClick: () -> Unit) {
     }
 }
 
+// What the user sees before adding any pets
 @Composable
 fun EmptyHomeState() {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -343,6 +348,7 @@ fun EmptyHomeState() {
     }
 }
 
+// Preview with two made-up pets and tasks
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {

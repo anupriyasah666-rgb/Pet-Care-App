@@ -36,6 +36,7 @@ import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
 
+// Screen for changing an existing pet's details
 @Composable
 fun EditPetScreen(
     petId: String,
@@ -46,15 +47,18 @@ fun EditPetScreen(
 ) {
     val user by authViewModel.user.collectAsState()
     val pets by petViewModel.pets.collectAsState()
+    // Find the pet being edited in the list the ViewModel already has
     val pet = pets.find { it.id == petId }
     val isUploading by petViewModel.isImageUploading.collectAsState()
     val successMessage by petViewModel.successMessage.collectAsState()
     val errorMessage by petViewModel.errorMessage.collectAsState()
 
+    // Make sure the pet list is loaded, for example if the app was reopened on this screen
     LaunchedEffect(user) {
         user?.uid?.let { petViewModel.loadPets(it) }
     }
 
+    // Show a loading spinner until the pet has been found
     if (pet == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -74,6 +78,7 @@ fun EditPetScreen(
     )
 }
 
+// The form layout. Every box starts filled in with the pet's current details
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditPetScreenContent(
@@ -86,7 +91,7 @@ fun EditPetScreenContent(
 ) {
     var name by remember { mutableStateOf(pet.name) }
     var breed by remember { mutableStateOf(pet.breed) }
-    // Show an empty field (not "0") when age/weight were never entered
+    // If age or weight was never entered, leave the box empty instead of showing "0"
     var age by remember { mutableStateOf(if (pet.age > 0) pet.age.toString() else "") }
     var weight by remember { mutableStateOf(if (pet.weight > 0.0) pet.weight.toString() else "") }
     var dietary by remember { mutableStateOf(pet.dietaryPreferences) }
@@ -102,6 +107,7 @@ fun EditPetScreenContent(
     var ageError by remember { mutableStateOf<String?>(null) }
     var weightError by remember { mutableStateOf<String?>(null) }
 
+    // Opens the gallery. Picking a picture clears the link box so only one photo is used
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -111,6 +117,7 @@ fun EditPetScreenContent(
         }
     }
 
+    // Same checks as the Add Pet screen
     fun validate(): Boolean {
         var isValid = true
         if (name.isBlank()) { nameError = "Pet name is required"; isValid = false } else nameError = null
@@ -137,6 +144,7 @@ fun EditPetScreenContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Round photo preview. Tap it to choose a different picture
                 Box(
                     modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
@@ -149,6 +157,7 @@ fun EditPetScreenContent(
                     }
                 }
 
+                // Photo link box. Pasting a link is how photos are changed, since file uploads need Firebase Storage
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Photo Link (Optional)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
@@ -156,6 +165,7 @@ fun EditPetScreenContent(
                             value = imageUrl,
                             onValueChange = {
                                 imageUrl = it
+                                // Typing a link replaces any picture picked from the gallery
                                 if (it.isNotEmpty()) selectedImageUri = null
                             },
                             label = "Image URL"
@@ -191,6 +201,7 @@ fun EditPetScreenContent(
                     isLoading = isUploading,
                     onClick = {
                         if (validate()) {
+                            // copy() keeps the pet's id and owner, and only changes the edited fields
                             val updatedPet = pet.copy(
                                 name = name, breed = breed, age = age.trim().toIntOrNull() ?: 0,
                                 weight = weight.trim().toDoubleOrNull() ?: 0.0,
@@ -198,6 +209,7 @@ fun EditPetScreenContent(
                                 allergies = allergies, favoriteToys = toys, notes = notes,
                                 imageUrl = imageUrl
                             )
+                            // Use the picked file if there is one, otherwise the pasted link
                             val finalUri = selectedImageUri ?: if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
                             onUpdatePet(updatedPet, finalUri)
                         }
@@ -206,6 +218,7 @@ fun EditPetScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
+            // Green message when the changes are saved, red one if it fails
             if (successMessage != null) {
                 Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp), shape = RoundedCornerShape(24.dp), color = Color(0xFF2E7D32), contentColor = Color.White, shadowElevation = 8.dp) {
                     Text(text = successMessage, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
@@ -220,6 +233,7 @@ fun EditPetScreenContent(
     }
 }
 
+// Preview with a made-up pet
 @Preview(showBackground = true)
 @Composable
 fun EditPetScreenPreview() {

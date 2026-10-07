@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
+// Colours for light mode. The actual colour values are in Color.kt
 private val LightColorScheme = lightColorScheme(
     primary = md_theme_light_primary,
     onPrimary = md_theme_light_onPrimary,
@@ -22,6 +23,7 @@ private val LightColorScheme = lightColorScheme(
     onSurface = md_theme_light_onSurface,
 )
 
+// The same set of colours for dark mode, a bit softer so they're easy on the eyes at night
 private val DarkColorScheme = darkColorScheme(
     primary = md_theme_dark_primary,
     onPrimary = md_theme_dark_onPrimary,
@@ -38,6 +40,9 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = md_theme_dark_onSurface,
 )
 
+// Wraps the whole app (see MainActivity) so every screen uses the same colours and text styles.
+// It follows the phone's light or dark mode setting automatically.
+// Android 12's wallpaper colours (dynamic colour) aren't used, so the app always keeps its own blue and pink look
 @Composable
 fun PetCareApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

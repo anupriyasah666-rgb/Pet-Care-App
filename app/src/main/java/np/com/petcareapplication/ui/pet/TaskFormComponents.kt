@@ -14,13 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import np.com.petcareapplication.util.TimeUtils
 
-/** Categories offered when creating or editing a care task. */
+// The task categories to choose from on the Add Task and Edit Task screens
 val TASK_CATEGORIES = listOf("Feeding", "Exercise", "Grooming", "Healthcare", "Medication", "Play", "Other")
 
-/**
- * Read-only field that opens a menu of categories. Choosing from a fixed list
- * (rather than typing) keeps the Pet Detail screen's category grouping consistent.
- */
+// Category box that can't be typed in. The arrow opens a list to pick from.
+// Using a fixed list means tasks group properly under the same headings on the Pet Detail screen
 @Composable
 fun CategoryDropdown(
     selected: String,
@@ -28,6 +26,7 @@ fun CategoryDropdown(
     modifier: Modifier = Modifier,
     options: List<String> = TASK_CATEGORIES
 ) {
+    // Whether the list of categories is showing
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -60,13 +59,10 @@ fun CategoryDropdown(
     }
 }
 
-/**
- * Read-only time field backed by the Material 3 TimePicker dialog.
- * Replaces the old free-text "Time" field so only valid times can be saved.
- *
- * @param time the currently selected time as text, e.g. "07:30 AM" (empty if none chosen)
- * @param onTimeSelected called with the formatted time when the user taps OK
- */
+// Time box that can't be typed in. The pencil opens Material 3's clock picker,
+// so only real times can be saved. It used to be a normal text box, which let people type anything.
+// time is the chosen time as text, e.g. "07:30 AM", or empty if nothing has been picked yet.
+// onTimeSelected gets the new time when the user presses OK
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerField(
@@ -75,6 +71,7 @@ fun TimePickerField(
     modifier: Modifier = Modifier,
     error: String? = null
 ) {
+    // Whether the clock pop-up is showing
     var showPicker by remember { mutableStateOf(false) }
 
     OutlinedTextField(
@@ -84,6 +81,7 @@ fun TimePickerField(
         label = { Text("Time") },
         placeholder = { Text("Tap the pencil to choose") },
         isError = error != null,
+        // Show the error under the box, e.g. when Save is pressed without a time
         supportingText = if (error != null) { { Text(error) } } else null,
         leadingIcon = {
             Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -98,11 +96,12 @@ fun TimePickerField(
     )
 
     if (showPicker) {
-        // Open the picker at the task's saved time if there is one, otherwise 08:00.
+        // Open the clock at the time already chosen, or 08:00 if there isn't one yet
         val initial = TimeUtils.parseTime(time) ?: (8 to 0)
         val state = rememberTimePickerState(
             initialHour = initial.first,
             initialMinute = initial.second,
+            // 12-hour clock with AM and PM
             is24Hour = false
         )
         AlertDialog(
@@ -111,6 +110,7 @@ fun TimePickerField(
             text = { TimePicker(state = state) },
             confirmButton = {
                 TextButton(onClick = {
+                    // Turn the hour and minute into text like "07:30 AM"
                     onTimeSelected(TimeUtils.formatTime(state.hour, state.minute))
                     showPicker = false
                 }) { Text("OK") }

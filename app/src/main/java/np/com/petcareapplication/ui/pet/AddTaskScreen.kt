@@ -39,6 +39,7 @@ import np.com.petcareapplication.viewmodel.PetViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Screen for adding a care task (feeding, walking, grooming and so on) to one pet
 @Composable
 fun AddTaskScreen(
     petId: String,
@@ -58,11 +59,13 @@ fun AddTaskScreen(
         errorMessage = errorMessage,
         onBack = onBack,
         onAddTask = { task, uri ->
+            // Link the task to both the logged-in user and the pet it belongs to
             petViewModel.addTaskWithImage(task.copy(ownerId = user?.uid ?: "", petId = petId), uri) { onTaskAdded() }
         }
     )
 }
 
+// The form layout, kept separate from the ViewModel so the preview works
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTaskScreenContent(
@@ -78,6 +81,7 @@ fun AddTaskScreenContent(
     var timeSchedule by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var supplies by remember { mutableStateOf("") }
+    // Tasks are DAILY by default. WEEKLY needs a day and ONE-TIME needs a date
     var type by remember { mutableStateOf("DAILY") }
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -90,6 +94,7 @@ fun AddTaskScreenContent(
     var titleError by remember { mutableStateOf<String?>(null) }
     var scheduleError by remember { mutableStateOf<String?>(null) }
 
+    // Opens the gallery. Picking a picture clears the link box so only one photo is used
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -99,10 +104,12 @@ fun AddTaskScreenContent(
         }
     }
 
+    // Android's own calendar pop-up, used for one-time tasks
     val datePickerDialog = DatePickerDialog(context, { _, y, m, d ->
         val newCal = Calendar.getInstance(); newCal.set(y, m, d); selectedDate = newCal
     }, selectedDate.get(Calendar.YEAR), selectedDate.get(Calendar.MONTH), selectedDate.get(Calendar.DAY_OF_MONTH))
 
+    // A task needs a title and a time. Everything else is optional
     fun validate(): Boolean {
         var isValid = true
         if (title.isBlank()) { titleError = "Title is required"; isValid = false } else titleError = null
@@ -115,11 +122,13 @@ fun AddTaskScreenContent(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding).background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))))) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Round photo preview. Tap it to choose a picture from the gallery
                 Box(modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
                     val displayImage = selectedImageUri ?: imageUrl.ifEmpty { null }
                     if (displayImage != null) { AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
                     else { Icon(Icons.Default.AddAPhoto, contentDescription = "Add photo", tint = MaterialTheme.colorScheme.primary) }
                 }
+                // Photo link box. Pasting a link is how photos are added, since file uploads need Firebase Storage
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Photo Link", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
@@ -130,25 +139,30 @@ fun AddTaskScreenContent(
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Task Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         PetCareTextField(value = title, onValueChange = { title = it; if (titleError != null) titleError = null }, label = "Title", error = titleError)
+                        // CategoryDropdown and TimePickerField are shared with Edit Task (TaskFormComponents.kt)
                         CategoryDropdown(selected = category, onSelected = { category = it })
+                        // Chips for choosing how often the task repeats
                         Text("How often?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selected = type == "DAILY", onClick = { type = "DAILY" }, label = { Text("Daily") })
                             FilterChip(selected = type == "WEEKLY", onClick = { type = "WEEKLY" }, label = { Text("Weekly") })
                             FilterChip(selected = type == "ONE-TIME", onClick = { type = "ONE-TIME" }, label = { Text("One-time") })
                         }
+                        // Weekly tasks get a drop-down to choose the day
                         if (type == "WEEKLY") {
                             Box {
                                 OutlinedTextField(value = selectedDay, onValueChange = {}, label = { Text("Day") }, modifier = Modifier.fillMaxWidth(), readOnly = true, trailingIcon = { IconButton(onClick = { dayExpanded = true }) { Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose day") } }, shape = RoundedCornerShape(16.dp))
                                 DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }) { daysOfWeek.forEach { day -> DropdownMenuItem(text = { Text(day) }, onClick = { selectedDay = day; dayExpanded = false }) } }
                             }
                         }
+                        // One-time tasks get a date box. The calendar opens from the icon
                         if (type == "ONE-TIME") {
                             OutlinedTextField(value = dateFormatter.format(selectedDate.time), onValueChange = {}, label = { Text("Date") }, modifier = Modifier.fillMaxWidth(), readOnly = true, leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }, trailingIcon = { IconButton(onClick = { datePickerDialog.show() }) { Icon(Icons.Default.EditCalendar, contentDescription = "Choose date") } }, shape = RoundedCornerShape(16.dp))
                         }
                         TimePickerField(time = timeSchedule, onTimeSelected = { timeSchedule = it; scheduleError = null }, error = scheduleError)
                     }
                 }
+                // Optional extras: what's needed for the task and any instructions
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Supplies & Instructions", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -158,19 +172,23 @@ fun AddTaskScreenContent(
                 }
                 PetCareButton(text = "Save Task", isLoading = isUploading, onClick = {
                     if (validate()) {
+                        // Turn the choices into one readable line, e.g. "Every Monday at 08:00 AM"
                         val finalSchedule = when(type) { "WEEKLY" -> "Every $selectedDay at $timeSchedule"; "ONE-TIME" -> "${dateFormatter.format(selectedDate.time)} at $timeSchedule"; else -> timeSchedule }
                         val task = CareTask(title = title, category = category, schedule = finalSchedule, notes = notes, supplies = supplies, type = type, dueDate = selectedDate.timeInMillis, imageUrl = imageUrl)
+                        // Use the picked file if there is one, otherwise the pasted link
                         val finalUri = selectedImageUri ?: if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
                         onAddTask(task, finalUri)
                     }
                 })
             }
+            // Green message when the task is saved, red one if it fails
             if (successMessage != null) { Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp), shape = RoundedCornerShape(24.dp), color = Color(0xFF2E7D32), contentColor = Color.White, shadowElevation = 8.dp) { Text(text = successMessage, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) } }
             if (errorMessage != null) { Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError, shadowElevation = 8.dp) { Text(text = errorMessage, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) } }
         }
     }
 }
 
+// Preview for Android Studio's design view
 @Preview(showBackground = true)
 @Composable
 fun AddTaskScreenPreview() {

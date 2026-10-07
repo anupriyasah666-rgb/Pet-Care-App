@@ -31,6 +31,7 @@ import np.com.petcareapplication.viewmodel.ExpenseViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Shows everything spent on one pet, with the total at the top
 @Composable
 fun ExpenseScreen(
     petId: String,
@@ -42,6 +43,7 @@ fun ExpenseScreen(
     val totalSpent by viewModel.totalSpent.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
 
+    // Load this pet's expenses when the screen opens, or if a different pet is shown
     LaunchedEffect(petId) {
         viewModel.loadExpenses(petId)
     }
@@ -56,6 +58,7 @@ fun ExpenseScreen(
     )
 }
 
+// The screen layout, kept separate from the ViewModel so the preview can use sample expenses
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseScreenContent(
@@ -66,11 +69,13 @@ fun ExpenseScreenContent(
     onDeleteExpense: (String) -> Unit,
     successMessage: String? = null
 ) {
+    // Holds the expense the user wants to delete. While it's set, the confirm dialog is shown
     var expenseToDelete by remember { mutableStateOf<Expense?>(null) }
 
     expenseToDelete?.let { expense ->
         ConfirmDeleteDialog(
             title = "Delete expense?",
+            // Show the amount with two decimal places, e.g. $12.50
             message = "Remove the ${expense.category} expense of $${String.format(Locale.US, "%.2f", expense.amount)}? Your total will be updated.",
             onConfirm = { onDeleteExpense(expense.id); expenseToDelete = null },
             onDismiss = { expenseToDelete = null }
@@ -111,6 +116,7 @@ fun ExpenseScreenContent(
                         )
                     )
             ) {
+                // Big blue card with the total spent so far
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -134,6 +140,7 @@ fun ExpenseScreenContent(
                     }
                 }
 
+                // Heading with a small badge showing how many expenses there are
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -178,7 +185,7 @@ fun ExpenseScreenContent(
                 }
             }
 
-            // Confirmation banner after a delete (fixed deep pink keeps white text readable in dark mode)
+            // Pink message after an expense is deleted. The colour is fixed so the white text is readable in dark mode too
             if (successMessage != null) {
                 Surface(
                     modifier = Modifier
@@ -200,6 +207,7 @@ fun ExpenseScreenContent(
     }
 }
 
+// One expense in the list: category icon, description, date and amount
 @Composable
 fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -218,6 +226,7 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
+                        // Pick an icon that matches the category
                         imageVector = when(expense.category.lowercase()) {
                             "food" -> Icons.Default.Restaurant
                             "medical" -> Icons.Default.MedicalServices
@@ -253,6 +262,7 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 16.sp
                 )
+                // Bin button asks first, it doesn't delete straight away
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.DeleteSweep, contentDescription = "Delete ${expense.category} expense", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
@@ -261,6 +271,7 @@ fun ExpenseItem(expense: Expense, onDelete: () -> Unit) {
     }
 }
 
+// What the user sees before logging any expenses
 @Composable
 fun EmptyExpensePlaceholder() {
     Column(
@@ -290,6 +301,7 @@ fun EmptyExpensePlaceholder() {
     }
 }
 
+// Preview with three made-up expenses
 @Preview(showBackground = true)
 @Composable
 fun ExpenseScreenPreview() {

@@ -30,6 +30,7 @@ import np.com.petcareapplication.ui.theme.BluePrimary
 import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.ExpenseViewModel
 
+// Screen for logging money spent on a pet, like food or a vet visit
 @Composable
 fun AddExpenseScreen(
     petId: String,
@@ -46,6 +47,7 @@ fun AddExpenseScreen(
         onErrorShown = { viewModel.clearErrorMessage() },
         onBack = onBack,
         onAddExpense = { category, amount, description ->
+            // Today's date is saved automatically, so the user doesn't have to pick one
             val newExpense = Expense(
                 petId = petId,
                 category = category,
@@ -53,11 +55,13 @@ fun AddExpenseScreen(
                 description = description,
                 date = System.currentTimeMillis()
             )
+            // onExpenseAdded takes the user back once Firestore has saved it
             viewModel.addExpense(newExpense, onExpenseAdded)
         }
     )
 }
 
+// The form layout, kept separate from the ViewModel so the preview works
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreenContent(
@@ -67,10 +71,10 @@ fun AddExpenseScreenContent(
     errorMessage: String? = null,
     onErrorShown: () -> Unit = {}
 ) {
-    // Prevents a double tap on "Save Record" from saving the same expense twice
+    // Stops a quick double tap on "Save Record" from saving the same expense twice
     var isSaving by remember { mutableStateOf(false) }
 
-    // If saving failed, re-enable the button and hide the error after a few seconds
+    // If the save fails, let the user press the button again and hide the error after 3 seconds
     LaunchedEffect(errorMessage) {
         if (errorMessage != null) {
             isSaving = false
@@ -86,9 +90,11 @@ fun AddExpenseScreenContent(
     var amountError by remember { mutableStateOf<String?>(null) }
     var descriptionError by remember { mutableStateOf<String?>(null) }
 
+    // Options for the category drop-down
     val categories = listOf("Food", "Grooming", "Medical", "Toys", "Medication", "Other")
     var categoryExpanded by remember { mutableStateOf(false) }
 
+    // Amount must be a proper number above zero, and the description can't be empty
     fun validate(): Boolean {
         amountError = Validators.validateAmount(amount)
         descriptionError = Validators.validateRequired(description, "Description")
@@ -144,6 +150,7 @@ fun AddExpenseScreenContent(
                             color = MaterialTheme.colorScheme.primary
                         )
 
+                        // Category box can't be typed in. The arrow opens a list to pick from
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = category,
@@ -180,6 +187,7 @@ fun AddExpenseScreenContent(
                             }
                         }
 
+                        // Number keyboard with a decimal point, so amounts like 12.50 can be typed
                         PetCareTextField(
                             value = amount,
                             onValueChange = { amount = it; amountError = null },
@@ -189,6 +197,7 @@ fun AddExpenseScreenContent(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                         )
 
+                        // Bigger box with room for a few lines of description
                         OutlinedTextField(
                             value = description,
                             onValueChange = { description = it; descriptionError = null },
@@ -223,13 +232,14 @@ fun AddExpenseScreenContent(
                     onClick = {
                         if (!isSaving && validate()) {
                             isSaving = true
+                            // validate() has already checked the amount, so toDouble() is safe here
                             onAddExpense(category, amount.trim().toDouble(), description.trim())
                         }
                     }
                 )
             }
 
-            // SUCCESS MESSAGE OVERLAY IN GREEN COLOR
+            // Green message at the bottom when the expense has been saved
             if (successMessage != null) {
                 Surface(
                     modifier = Modifier
@@ -249,7 +259,7 @@ fun AddExpenseScreenContent(
                 }
             }
 
-            // ERROR MESSAGE OVERLAY (e.g. no internet connection)
+            // Red message at the bottom if saving fails, for example with no internet
             if (errorMessage != null) {
                 Surface(
                     modifier = Modifier
@@ -272,6 +282,7 @@ fun AddExpenseScreenContent(
     }
 }
 
+// Preview for Android Studio's design view
 @Preview(showBackground = true)
 @Composable
 fun AddExpenseScreenPreview() {

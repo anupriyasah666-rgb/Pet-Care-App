@@ -1,14 +1,11 @@
 package np.com.petcareapplication.util
 
-/**
- * Builds the SMS text used to delegate a single care task to someone else
- * (e.g. a pet sitter or family member).
- *
- * Kept as plain Kotlin with simple String parameters so it can be unit tested
- * without Android or Firebase.
- */
+// Builds the text message for handing one task over to someone else, like a pet sitter or a family member.
+// It only uses plain Kotlin and Strings, with nothing from Android or Firebase,
+// so it can be checked with normal unit tests (see DelegationMessagesTest)
 object DelegationMessages {
 
+    // Puts the task details first, then the pet's allergies and diet so the sitter knows what to watch out for
     fun forTask(
         petName: String,
         petAllergies: String,
@@ -20,10 +17,13 @@ object DelegationMessages {
     ): String = buildString {
         append("Hi! Could you please take care of this for $petName?\n\n")
         append("Task: $taskTitle\n")
+        // If the task has no time set, say "Any time today" instead of leaving it blank
         append("When: ${taskSchedule.ifBlank { "Any time today" }}\n")
+        // Supplies and instructions are only added if the task has them
         if (taskSupplies.isNotBlank()) append("Supplies: $taskSupplies\n")
         if (taskNotes.isNotBlank()) append("Instructions: $taskNotes\n")
         append("\nAbout $petName\n")
+        // Empty allergies or diet show a sensible default rather than nothing
         append("Allergies: ${petAllergies.ifBlank { "None" }}\n")
         append("Diet: ${petDiet.ifBlank { "Standard" }}\n")
         append("\nSent from Happy Pets")

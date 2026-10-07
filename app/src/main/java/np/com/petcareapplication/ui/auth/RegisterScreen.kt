@@ -35,6 +35,7 @@ import np.com.petcareapplication.ui.theme.BluePrimary
 import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 
+// Connects the sign-up form to AuthViewModel
 @Composable
 fun RegisterScreen(
     viewModel: AuthViewModel = viewModel(),
@@ -47,6 +48,8 @@ fun RegisterScreen(
     val successMessage by viewModel.successMessage.collectAsState()
     val isRegisterLoading by viewModel.isRegisterLoading.collectAsState()
 
+    // Firebase signs the new user in straight after creating the account.
+    // MainActivity then signs them out and sends them to Login to sign in with their new details
     LaunchedEffect(user) {
         if (user != null) {
             onRegisterSuccess()
@@ -64,6 +67,7 @@ fun RegisterScreen(
     )
 }
 
+// The form itself. It doesn't know about the ViewModel, so the preview can show it on its own
 @Composable
 fun RegisterScreenContent(
     registerError: String?,
@@ -87,6 +91,7 @@ fun RegisterScreenContent(
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
+    // Runs every check at once so all the problems show up together, not one at a time
     fun validate(): Boolean {
         nameError = Validators.validateFullName(name)
         emailError = Validators.validateEmail(email)
@@ -114,6 +119,7 @@ fun RegisterScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Heading at the top of the blue background
             Text(text = "Create Account", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             Text(text = "Join our community of pet lovers", fontSize = 16.sp, color = Color.White.copy(alpha = 0.9f))
             Spacer(modifier = Modifier.height(24.dp))
@@ -131,6 +137,7 @@ fun RegisterScreenContent(
                     PetCareTextField(
                         value = name,
                         onValueChange = { input ->
+                            // Ignore anything that isn't a letter or a space
                             if (input.all { it.isLetter() || it.isWhitespace() }) {
                                 name = input
                                 nameError = null
@@ -161,6 +168,7 @@ fun RegisterScreenContent(
                     PetCareTextField(
                         value = phone,
                         onValueChange = { input ->
+                            // Digits only, and stop at 10
                             val digitsOnly = input.filter { it.isDigit() }
                             if (digitsOnly.length <= 10) {
                                 phone = digitsOnly
@@ -175,8 +183,8 @@ fun RegisterScreenContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // If the password is weak, passwordError shows one red suggestion message
-                    // under this field listing everything that is missing (see Validators.validatePassword)
+                    // A weak password shows one red message under this box that lists everything still missing.
+                    // The message itself is built in Validators.validatePassword
                     PetCareTextField(
                         value = password,
                         onValueChange = { password = it; passwordError = null },
@@ -209,6 +217,7 @@ fun RegisterScreenContent(
                         }
                     )
 
+                    // Message from Firebase, for example when the email is already registered
                     if (registerError != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
@@ -234,12 +243,14 @@ fun RegisterScreenContent(
                     PetCareButton(
                         text = "Sign Up",
                         isLoading = isRegisterLoading,
+                        // Only call Firebase when every field passes the checks
                         onClick = { if (validate()) onRegister(name.trim(), email, password, phone) }
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            // Back to the Login screen for people who already have an account
             TextButton(onClick = onNavigateToLogin) {
                 Text(
                     text = "Already have an account? Login",
@@ -252,6 +263,7 @@ fun RegisterScreenContent(
     }
 }
 
+// Preview for Android Studio's design view
 @Preview(showBackground = true)
 @Composable
 fun RegisterScreenPreview() {

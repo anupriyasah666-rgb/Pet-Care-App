@@ -39,6 +39,7 @@ import np.com.petcareapplication.ui.theme.PetCareApplicationTheme
 import np.com.petcareapplication.viewmodel.AuthViewModel
 import np.com.petcareapplication.viewmodel.PetViewModel
 
+// Screen for adding a new pet to the user's account
 @Composable
 fun AddPetScreen(
     onBack: () -> Unit,
@@ -57,6 +58,7 @@ fun AddPetScreen(
         successMessage = successMessage,
         errorMessage = errorMessage,
         onBack = onBack,
+        // Every pet is saved with the owner's id, so users only ever see their own pets
         onAddPet = { pet, uri ->
             val ownerId = user?.uid
             if (ownerId != null) {
@@ -68,6 +70,7 @@ fun AddPetScreen(
     )
 }
 
+// The form layout. It takes plain values so the preview can show it without Firebase
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPetScreenContent(
@@ -94,6 +97,7 @@ fun AddPetScreenContent(
     var ageError by remember { mutableStateOf<String?>(null) }
     var weightError by remember { mutableStateOf<String?>(null) }
 
+    // Opens the gallery. If a picture is chosen, the link box is cleared so only one photo source is used
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -103,6 +107,7 @@ fun AddPetScreenContent(
         }
     }
 
+    // Name and breed must be filled in
     fun validate(): Boolean {
         var isValid = true
         if (name.isBlank()) { nameError = "Pet name is required"; isValid = false } else nameError = null
@@ -129,11 +134,12 @@ fun AddPetScreenContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Photo Section
+                // Round photo preview. Tapping it opens the phone's gallery
                 Box(
                     modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).clickable(onClickLabel = "Choose a photo") { imagePickerLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
+                    // Shows the picked file first, otherwise the pasted link, otherwise a camera icon
                     val displayImage = selectedImageUri ?: imageUrl.ifEmpty { null }
                     if (displayImage != null) {
                         AsyncImage(model = displayImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -142,6 +148,8 @@ fun AddPetScreenContent(
                     }
                 }
 
+                // Photo link box. This is the main way to add a photo, because uploading a file
+                // needs Firebase Storage, which is on the paid Blaze plan
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Photo Link (Optional)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
@@ -149,6 +157,7 @@ fun AddPetScreenContent(
                             value = imageUrl,
                             onValueChange = {
                                 imageUrl = it
+                                // Typing a link replaces any picture picked from the gallery
                                 if (it.isNotEmpty()) selectedImageUri = null
                             },
                             label = "Image URL (e.g. Pinterest link)"
@@ -157,6 +166,7 @@ fun AddPetScreenContent(
                     }
                 }
 
+                // Basic details. Name and breed are needed, age and weight use a number keyboard
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Details", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -169,6 +179,7 @@ fun AddPetScreenContent(
                     }
                 }
 
+                // Optional health info. These can be left empty
                 Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), shadowElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Health Info", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -198,6 +209,7 @@ fun AddPetScreenContent(
                         if (validate()) {
                             val newPet = Pet(
                                 name = name, breed = breed,
+                                // Blank age or weight is saved as 0
                                 age = age.trim().toIntOrNull() ?: 0,
                                 weight = weight.trim().toDoubleOrNull() ?: 0.0,
                                 dietaryPreferences = dietary,
@@ -207,6 +219,7 @@ fun AddPetScreenContent(
                                 notes = notes,
                                 imageUrl = imageUrl
                             )
+                            // Use the picked file if there is one, otherwise turn the pasted link into a Uri
                             val finalUri = selectedImageUri ?: if (imageUrl.isNotEmpty()) Uri.parse(imageUrl) else null
                             onAddPet(newPet, finalUri)
                         }
@@ -216,7 +229,7 @@ fun AddPetScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // FEEDBACK OVERLAYS
+            // Green message when the pet is saved, red one if something goes wrong
             if (successMessage != null) {
                 Surface(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp, start = 24.dp, end = 24.dp),
@@ -237,6 +250,7 @@ fun AddPetScreenContent(
     }
 }
 
+// Preview for Android Studio's design view
 @Preview(showBackground = true)
 @Composable
 fun AddPetScreenPreview() {
